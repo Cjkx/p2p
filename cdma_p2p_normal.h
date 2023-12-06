@@ -23,8 +23,19 @@ typedef enum {
 	DATA_INT32 = 4,
 	DATA_BF16 = 5,
 	DATA_FP20 = 6,
-	DATA_FORMAT_NUM,s
+	DATA_FORMAT_NUM,
 } CDMA_DATA_FORMAT;
+
+typedef enum {
+	CHAIN_END = 0,
+	NOP = 1,
+	SYS_TR_WR = 2,
+	SYS_MSG_TX_SEND = 3,
+	SYS_MSG_TX_WAIT = 4,
+	SYS_MSG_RX_SEND = 5,
+	SYS_MSG_RX_WAIT = 6,
+	DATA_FORMAT_NUM,
+} SYS_CMD_TYPE;
 
 typedef struct {
     uint32_t intr_en : 1;
@@ -34,9 +45,9 @@ typedef struct {
     uint32_t cmd_special_function : 3;
     uint32_t fill_constant_en : 1;
     uint32_t src_data_format : 4;
-    uint32_t src_start_addr_h8 : 13;
+    uint32_t src_start_addr_h13 : 13;
     uint32_t reserved2 : 3;
-    uint32_t dst_start_addr_h8 : 13;
+    uint32_t dst_start_addr_h13 : 13;
     uint32_t reserved3 : 19;
     uint32_t cmd_length : 32;
     uint32_t src_start_addr_l32 : 32;
@@ -45,6 +56,21 @@ typedef struct {
     uint32_t reserved5 : 32;
     uint32_t reserved6 : 32;
 } dma_general_desc;
+
+typedef struct {
+    uint32_t intr_en : 1;
+    uint32_t reserved1 : 2;
+    uint32_t breakpoint : 1;
+    uint32_t cmd_type : 4;
+    uint32_t cmd_special_function : 3;
+    uint32_t reserved2 : 21;
+    uint32_t constant_value_l32 : 32;
+    uint32_t constant_value_h32 : 32;
+    uint32_t reg_sel : 4;
+    uint32_t reserved3 : 28;
+} dma_sys_desc;
+
+
 
 #define CDMA_PHY_ADDRESS_START 		0x6C08790000LL
 #define CDMA_PHY_ADDRESS_END  		0x6C0879FFFFLL
@@ -69,10 +95,8 @@ typedef struct {
 // 					DDR_PHY_ADDRESS_START + 1)
 
 #define DDR_PHY_OFFSET			0x1000
-
-// #define CMD_REG_BASE			0x6C08790000
-// #define DESC_UPDT			0x6C08790400
-// #define CSR_REG_BASE			0x6C08791000
+#define GENERAL_DESC_PHY_OFFSET		0X110000000
+#define SYS_DESC_PHY_OFFSET		0X120000000
 
 #define CMD_REG_OFFSET			0x0000
 #define DESC_UPDT_OFFSET		0x0400

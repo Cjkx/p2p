@@ -78,15 +78,16 @@ static void cdma_p2p_normal_csr_config(uintptr_t csr_reg_base){
 	reg_val = sg_read32(csr_reg_base, CDMA_CSR_0_OFFSET);
 	reg_val |= ((1 << REG_CONNECTION_ON) | (1 << REG_HW_REPLAY_EN));
 	sg_write32(csr_reg_base, CDMA_CSR_0_OFFSET,reg_val);
-	/* when time cnt is bigger than this reg, trigger timeout replay*/
-	//reg_val = sg_read32(csr_reg_base, CDMA_CSR_5_OFFSET);
-	reg_val = 0;
-	reg_val |= 0xfffff;
-	sg_write32(csr_reg_base, CDMA_CSR_5_OFFSET,reg_val);
 	/* same subinst replay max times*/
 	reg_val = sg_read32(csr_reg_base, CDMA_CSR_4_OFFSET);
 	reg_val &= ~(0xf << REG_REPLAY_MAX_TIME);
+	reg_val |= (0xf << REG_REPLAY_MAX_TIME);
 	sg_write32(csr_reg_base, CDMA_CSR_4_OFFSET,reg_val);
+	/* when time cnt is bigger than this reg, trigger timeout replay*/
+	reg_val = 0;
+	reg_val |= 0xfffff;
+	sg_write32(csr_reg_base, CDMA_CSR_5_OFFSET, reg_val);
+	
 	/* config  VLAN_ID */
 
 	/* enable VLAN_ID */
@@ -101,16 +102,12 @@ static void cdma_p2p_normal_csr_config(uintptr_t csr_reg_base){
 	reg_val = sg_read32(csr_reg_base, CDMA_CSR_4_OFFSET);
 	reg_val &= ~(7 << REG_SEC_LENGTH);
 	reg_val |= (5 << REG_SEC_LENGTH);
-	sg_write32(csr_reg_base, CDMA_CSR_4_OFFSET,reg_val);
+	sg_write32(csr_reg_base, CDMA_CSR_4_OFFSET, reg_val);
 	/*when occur replay overflow, set this reg to recontinue*/
 
 	/*CDMA own tx channel id for mtl fab*/
 	/*CDMA own rx channel id for mtl fab*/
-	/*CDMA EDMA MTL FAB Arbitration：
-	00：fix priority，CDMA high priority
-	01：fix priority，EDMA high priority
-	10：round robin
-	*/
+	
 	reg_val = sg_read32(csr_reg_base, MTL_FAB_CSR_00);
 	reg_val &= ~( 0xf << REG_CDMA_TX_CH_ID);
 	reg_val |=  ( 0xf << REG_CDMA_TX_CH_ID);
@@ -120,20 +117,12 @@ static void cdma_p2p_normal_csr_config(uintptr_t csr_reg_base){
 	reg_val &= ~( 0x3 << REG_CDMA_FAB_ARBITRATION);
 	reg_val |=  ( 0x1 << REG_CDMA_FAB_ARBITRATION);
 	sg_write32(csr_reg_base, MTL_FAB_CSR_00, reg_val);
-	/*配置数据读到对应的网络,建议配置c2c_rn
-	 *低4bit为芯片级联信息，建议配置为0000
-	 *CXP: 	c2c_rn, addr[15:12]=1000
-   	 *	c2c_rni, addr[15:12]=1001
-	 */
+	/* WRITE c2c_rn */
 	reg_val = sg_read32(csr_reg_base, CDMA_CSR_141_OFFSET);
 	reg_val &= ~(0xff << REG_INTRA_DIE_WRITE_ADDR_H8);
 	reg_val |= (0x80 << REG_INTRA_DIE_WRITE_ADDR_H8);
 	sg_write32(csr_reg_base, CDMA_CSR_141_OFFSET, reg_val);
-	/*配置数据从对应网络读出,根据需求配置，建议配置c2c_rn
-	 *低4bit为芯片级联信息，建议配置为0000
-	 *CXP: 	c2c_rn, addr[15:12]=1000
-   	 *	c2c_rni, addr[15:12]=1001
-	 */
+	/* READ c2c_rn */
 	reg_val = sg_read32(csr_reg_base, CDMA_CSR_141_OFFSET);
 	reg_val &= ~(0xff << REG_INTRA_DIE_READ_ADDR_H8);
 	reg_val |= (0x80 << REG_INTRA_DIE_READ_ADDR_H8);
@@ -179,23 +168,23 @@ int testcase_cdma_p2p_normal_pio(char* dma_base_mmap,
 	      ((u64)src_format << CDMA_CMD_SRC_DATA_FORMAT) |
 	      (src_addr_h13 << CDMA_CMD_SRC_START_ADDR_H13) |
 	      (dst_addr_h13 << CDMA_CMD_DST_START_ADDR_H13);
-	mmio_write_64(cmd_reg_base,low);
-	u64 low_val = mmio_read_64(cmd_reg_base);
+	mmio_write_64(cmd_reg_base, low);
+	//u64 low_val = mmio_read_64(cmd_reg_base);
 	printf("function:%s, line:%d, low :0x%lx\n", __func__, __LINE__, low);
-	printf("function:%s, line:%d, low_val = 0x%lx\n", __func__, __LINE__, low_val);
+	//printf("function:%s, line:%d, low_val = 0x%lx\n", __func__, __LINE__, low_val);
 
 	high = (data_length << CDMA_CMD_CMD_LENGTH) |
 	       (src_addr_l32 << CDMA_CMD_SRC_START_ADDR_L32) ;
-	mmio_write_64(cmd_reg_base + 0x8,high);
-	u64 high_val = mmio_read_64(cmd_reg_base + 0x8);
-	printf("function:%s, line:%d, hign :0x%lx\n",__func__, __LINE__, low);
-	printf("function:%s, line:%d, hign_val = 0x%lx\n",__func__, __LINE__, high_val);
+	mmio_write_64(cmd_reg_base + 0x8, high);
+	//u64 high_val = mmio_read_64(cmd_reg_base + 0x8);
+	printf("function:%s, line:%d, hign :0x%lx\n",__func__, __LINE__, high);
+	//printf("function:%s, line:%d, hign_val = 0x%lx\n",__func__, __LINE__, high_val);
 
 	low = (dst_addr_l32 << CDMA_CMD_DST_START_ADDR_L32);
 	mmio_write_64(cmd_reg_base + 0x10, low);
-	low_val = mmio_read_64(cmd_reg_base + 0x10);
+	//low_val = mmio_read_64(cmd_reg_base + 0x10);
 	printf("function:%s, line:%d, low :0x%lx\n", __func__, __LINE__, low);
-	printf("function:%s, line:%d, low_val = 0x%lx\n", __func__, __LINE__, low_val);
+	//printf("function:%s, line:%d, low_val = 0x%lx\n", __func__, __LINE__, low_val);
 
 	/* In pio mode write 1 to update des*/
 	sg_write32(desc_updt, REG_DESCRIPTOR_UPDATE, 1);
@@ -209,49 +198,107 @@ int testcase_cdma_p2p_normal_pio(char* dma_base_mmap,
 	}
 	 return 0;
 }
-#if 0
-static void cdma_p2p_desc_csr_config(u32 desc_addr_l32,u32 desc_addr_h1){
+
+#define DESC_MODE
+
+#if defined(DESC_MODE)
+
+static void cdma_p2p_desc_csr_config(uintptr_t csr_reg_base, u32 desc_addr_l32,u32 desc_addr_h1){
 	u32 reg_val = 0;
 
 	/*des axi max arlen*/
-	reg_val = sg_read32(CSR_REG_BASE, CDMA_CSR_4_OFFSET);
+	reg_val = sg_read32(csr_reg_base, CDMA_CSR_4_OFFSET);
 	reg_val |= (7 << REG_DES_MAX_ARLEN);
-	sg_write32(CSR_REG_BASE, CDMA_CSR_4_OFFSET, reg_val);
+	sg_write32(csr_reg_base, CDMA_CSR_4_OFFSET, reg_val);
 	/* L32 addr [38:7]*/
-	sg_write32(CSR_REG_BASE, CDMA_CSR_9_OFFSET, desc_addr_l32);
+	sg_write32(csr_reg_base, CDMA_CSR_9_OFFSET, desc_addr_l32);
 	/* h1 addr [39:39]*/
-	sg_write32(CSR_REG_BASE, CDMA_CSR_9_OFFSET, desc_addr_h1);
+	sg_write32(csr_reg_base, CDMA_CSR_9_OFFSET, desc_addr_h1);
 	/* reg_des_arcache  reg_des_arqos default*/
 
 	/* desc net config*/
-	reg_val = sg_read32(CSR_REG_BASE, CDMA_CSR_142_OFFSET);
+	reg_val = sg_read32(csr_reg_base, CDMA_CSR_142_OFFSET);
 	reg_val &= ~(0xff << reg_des_read_addr_h8);
 	reg_val |= (0x80 << reg_des_read_addr_h8);
-	sg_write32(CSR_REG_BASE, CDMA_CSR_142_OFFSET, reg_val);
+	sg_write32(csr_reg_base, CDMA_CSR_142_OFFSET, reg_val);
 }
-int testcase_cdma_p2p_normal_desc(int desc_num,
-				 u64 src_mem_start_addr,
-				 int src_format,
-				 u32 data_length
-				 u64 dst_mem_start_addr)
+
+int testcase_cdma_p2p_normal_desc(char* dma_base_mmap,
+				  char* ddr_mapped_memory,
+				  int desc_num,
+				  u64 src_mem_start_addr,
+				  u64 dst_mem_start_addr,
+				  int src_format,
+				  u32 data_length
+				 )
 {
-	cdma_p2p_normal_csr_config();
-	uintptr_t  physicalAddress = 0x100000000;
-	dma_general_desc* dma_general_desc_addr = (dma_general_desc*)physicalAddress;//4GB
-	u32 dma_general_desc_addr_l32 = (physicalAddress >> 7) & 0xFFFFFFFF;
-	u32 dma_general_desc_addr_h1 = (physicalAddress >> 39) & 0x1;
-	cdma_p2p_desc_csr_config(dma_general_desc_addr_l32,dma_general_desc_addr_h1);
+	u32 reg_val = 0;
+	u32 mem_tag = 0;
+	u64 low = 0, high = 0;
+	u32 count = 3000;
+	u32 general_desc_phy_addr_l32;
+	u32 general_desc_phy_addr_h1;
+	u32 sys_desc_phy_addr_l32;
+	u32 sys_desc_phy_addr_h1;
+	u64 src_addr_h13 = ((src_mem_start_addr >> 32) | (mem_tag << 8)) & 0x1FFF;
+	u64 src_addr_l32 = (src_mem_start_addr ) & 0xFFFFFFFF;
+	u64 dst_addr_h13 = (dst_mem_start_addr >> 32) & 0x1FFF;
+	u64 dst_addr_l32 = (dst_mem_start_addr ) & 0xFFFFFFFF;
+
+	printf("src_mem_start_addr:0x%lx,src_addr_h13:0x%lx src_addr_l32 :0x%lx,\n\
+		dst_mem_start_addr:0x%lx,dst_addr_h13:0x%lx,dst_addr_l32:0x%lx\n",\
+		src_mem_start_addr,src_addr_h13,src_addr_l32,\
+		dst_mem_start_addr,dst_addr_h13,dst_addr_l32);
+	
+	uintptr_t cmd_reg_base = (uintptr_t)(dma_base_mmap + CMD_REG_OFFSET);
+	uintptr_t desc_updt = (uintptr_t)(dma_base_mmap + DESC_UPDT_OFFSET);
+	uintptr_t csr_reg_base = (uintptr_t)(dma_base_mmap + CSR_REG_OFFSET);
+
+	uintptr_t general_desc_virtual_addr = (uintptr_t)(ddr_mapped_memory + GENERAL_DESC_PHY_OFFSET);
+	uintptr_t general_desc_phy_addr = (uintptr_t)(DDR_PHY_ADDRESS_START + GENERAL_DESC_PHY_OFFSET);
+	dma_general_desc* dma_general_desc_addr = (dma_general_desc*)general_desc_virtual_addr;
+	printf("cmd_reg_base:0x%lx, desc_updt:0x%lx, csr_reg_base :0x%lx general_desc_virtual_addr:0x%lx\n ", \
+		cmd_reg_base, desc_updt, csr_reg_base, general_desc_virtual_addr);
+	
+	cdma_p2p_normal_csr_config(csr_reg_base);
+	general_desc_phy_addr_l32 = ((general_desc_phy_addr)>> 7) & 0xFFFFFFFF;
+	general_desc_phy_addr_h1 = ((general_desc_phy_addr)>> 39) & 0x1;
+	
 	/*At last,need add cdma_sys cmd */
 	for(int i = 0;i < desc_num ;i++){
-		if(i == desc_num - 1)
-			dma_general_desc_addr->intr_en = 1;
-		else
-			dma_general_desc_addr->intr_en = 0;
-		dma_general_desc_addr->cmd_type = (u32)CDMA_GENERAL ;
-		dma_general_desc_addr->src_data_format = src_format;
-		dma_general_desc_addr->src_start_addr_l32 = ;
+		dma_general_desc_addr +=  desc_num;
 
+		dma_general_desc_addr->intr_en = 0;
+		dma_general_desc_addr->cmd_type = (u32)CDMA_GENERAL;
+		dma_general_desc_addr->src_data_format = src_format;
+		dma_general_desc_addr->src_start_addr_h13 = src_addr_h13;
+		dma_general_desc_addr->dst_start_addr_h13 = dst_addr_h13;
+		dma_general_desc_addr->src_start_addr_l32 = src_addr_l32;
+		dma_general_desc_addr->dst_start_addr_l32 = dst_addr_l32;
+	} 
+	dma_general_desc_addr = dma_general_desc_addr + 1;
+	dma_sys_desc* dma_sys_desc_addr = (dma_sys_desc*)dma_general_desc_addr;
+	dma_sys_desc_addr->intr_en = 1;
+	dma_sys_desc_addr->cmd_type = (u32)CDMA_SYS;
+	dma_sys_desc_addr->cmd_special_function = (u32)CHAIN_END;
+
+	cdma_p2p_desc_csr_config(csr_reg_base, general_desc_phy_addr_l32, general_desc_phy_addr_h1);
+
+	/* enable desc mode */
+	reg_val = sg_read32(csr_reg_base, CDMA_CSR_0_OFFSET);
+	reg_val |= (1 << REG_DES_MODE_ENABLE);
+	sg_write32(csr_reg_base, CDMA_CSR_0_OFFSET,reg_val);
+
+	/* After the desc command is executed, check whether the enable is lowered*/
+	while(sg_read32(csr_reg_base, CDMA_CSR_0_OFFSET) & 0x1 != 0){
+		usleep(1);
+		if (--count == 0) {
+			printf("[desc mode]cdma polling wait timeout\n");
+			return -1;
+		}
 	}
+
+	
 
 }
 
@@ -261,20 +308,19 @@ int main()
 {
 	int src_format;
 	u32 data_length = 1;
-	u64 dst_mem_start_addr = 0x0;
+	u64 dst_mem_start_addr = 0x2000;
 
 
 	char* dma_mapped_memory = mmap_dma_phy_addr();
 	char* ddr_mapped_memory = mmap_ddr_phy_addr();
 	
-	uintptr_t ddr_value_virtual = (uintptr_t)(ddr_mapped_memory + 0x1000);
+	uintptr_t ddr_value_virtual = (uintptr_t)(ddr_mapped_memory + DDR_PHY_OFFSET);
  	uintptr_t ddr_value_phy = DDR_PHY_ADDRESS_START + DDR_PHY_OFFSET;
 	printf("ddr_value_virtual:0x%lx\n", ddr_value_virtual);
-
-	sg_write32(ddr_value_virtual,0x00,0x13);
-	u32 ddr_value = sg_read32(ddr_value_virtual,0x00);
+	sg_write32(ddr_value_virtual, 0x00, 0x13);
+	u32 ddr_value = sg_read32(ddr_value_virtual, 0x00);
 	printf("ddr_value:%u\n", ddr_value);
-	
+
   	testcase_cdma_p2p_normal_pio((char*)dma_mapped_memory,
 				(u64)ddr_value_phy,
 				(int)DATA_INT32,
