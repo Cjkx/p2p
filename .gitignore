@@ -1,0 +1,4 @@
+build/
+.vscode/
+backdoor/
+rootfs.ext2*

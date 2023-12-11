@@ -34,46 +34,57 @@ typedef enum {
 	SYS_MSG_TX_WAIT = 4,
 	SYS_MSG_RX_SEND = 5,
 	SYS_MSG_RX_WAIT = 6,
-	DATA_FORMAT_NUM,
+	SYS_CMD_NUM,
 } SYS_CMD_TYPE;
 
 typedef struct {
-    uint32_t intr_en : 1;
-    uint32_t reserved1 : 2;
-    uint32_t breakpoint : 1;
-    uint32_t cmd_type : 4;
-    uint32_t cmd_special_function : 3;
-    uint32_t fill_constant_en : 1;
-    uint32_t src_data_format : 4;
-    uint32_t src_start_addr_h13 : 13;
-    uint32_t reserved2 : 3;
-    uint32_t dst_start_addr_h13 : 13;
-    uint32_t reserved3 : 19;
-    uint32_t cmd_length : 32;
-    uint32_t src_start_addr_l32 : 32;
-    uint32_t dst_start_addr_l32 : 32;
-    uint32_t reserved4 : 32;
-    uint32_t reserved5 : 32;
-    uint32_t reserved6 : 32;
+    u8 dest_mac[6];
+    u8 source_mac[6];
+    struct {
+        unsigned int priority: 3;
+        unsigned int vlan_id: 12;
+        unsigned int cfi: 1;
+        unsigned int ether_type: 16;
+    } vlan_header;
+} eth_header_t;
+
+typedef struct {
+	uint32_t intr_en : 1;
+	uint32_t reserved1 : 2;
+	uint32_t breakpoint : 1;
+	uint32_t cmd_type : 4;
+	uint32_t cmd_special_function : 3;
+	uint32_t fill_constant_en : 1;
+	uint32_t src_data_format : 4;
+	uint32_t src_start_addr_h13 : 13;
+	uint32_t reserved2 : 3;
+	uint32_t dst_start_addr_h13 : 13;
+	uint32_t reserved3 : 19;
+	uint32_t cmd_length : 32;
+	uint32_t src_start_addr_l32 : 32;
+	uint32_t dst_start_addr_l32 : 32;
+	uint32_t reserved4 : 32;
+	uint32_t reserved5 : 32;
+	uint32_t reserved6 : 32;
 } dma_general_desc;
 
 typedef struct {
-    uint32_t intr_en : 1;
-    uint32_t reserved1 : 2;
-    uint32_t breakpoint : 1;
-    uint32_t cmd_type : 4;
-    uint32_t cmd_special_function : 3;
-    uint32_t reserved2 : 21;
-    uint32_t constant_value_l32 : 32;
-    uint32_t constant_value_h32 : 32;
-    uint32_t reg_sel : 4;
-    uint32_t reserved3 : 28;
+	uint32_t intr_en : 1;
+	uint32_t reserved1 : 2;
+	uint32_t breakpoint : 1;
+	uint32_t cmd_type : 4;
+	uint32_t cmd_special_function : 3;
+	uint32_t reserved2 : 21;
+	uint32_t constant_value_l32 : 32;
+	uint32_t constant_value_h32 : 32;
+	uint32_t reg_sel : 4;
+	uint32_t reserved3 : 28;
 } dma_sys_desc;
 
 
 
-#define CDMA_PHY_ADDRESS_START 		0x6C08790000LL
-#define CDMA_PHY_ADDRESS_END  		0x6C0879FFFFLL
+#define CDMA_PHY_ADDRESS_START 		0x6C08790000ULL
+#define CDMA_PHY_ADDRESS_END  		0x6C0879FFFFULL
 #define CDMA_MEMORY_RANGE 		(CDMA_PHY_ADDRESS_END -\
 					CDMA_PHY_ADDRESS_START + 1)
 
@@ -84,8 +95,8 @@ typedef struct {
 // #define CDMA_MEMORY_RANGE 		(CDMA_PHY_ADDRESS_END -\
 // 					CDMA_PHY_ADDRESS_START + 1)
 
-#define DDR_PHY_ADDRESS_START 		0x0000000000LL
-#define DDR_PHY_ADDRESS_END 		0x007FFFFFFFLL
+#define DDR_PHY_ADDRESS_START 		0x0000000000ULL
+#define DDR_PHY_ADDRESS_END 		0x007FFFFFFFULL
 #define DDR_MEMORY_RANGE 		(DDR_PHY_ADDRESS_END -\
 					DDR_PHY_ADDRESS_START + 1)
 
@@ -131,6 +142,10 @@ typedef struct {
 #define REG_BASE_ADDR_REGINE0		0x5c
 #define CDMA_CSR_141_OFFSET		0x23c
 #define CDMA_CSR_142_OFFSET		0x240
+#define CDMA_CSR_148_Setting		0x258
+#define CDMA_CSR_149_Setting		0x25c
+#define CDMA_CSR_150_Setting		0x260
+#define CDMA_CSR_151_Setting		0x264
 #define MTL_FAB_CSR_00			0x3c0
 
 // CDMA_CSR_0

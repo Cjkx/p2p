@@ -1,80 +1,59 @@
-#include <stdint.h>
-#include <assert.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <stdio.h>
-
-
-#include "mmio.h"
+#include "cdma_p2p_common.h"
 #include "cdma_p2p_normal.h"
-#include "bm_types.h"
 
-void sg_write32(uintptr_t base, u32 offset, u32 value)
-{
-	mmio_write_32((base + offset), value);
+
+static void eth_header_construction(uintptr_t csr_reg_base) {
+	int val;
+	u8  vlan_header[4];
+	u32 read_val;
+	eth_header_t eth_header = {
+		.dest_mac = {0x00, 0x1b, 0x21, 0x3b, 0x30, 0x8e},
+		.source_mac = {0xe0, 0xa5, 0x09, 0x00, 0x2a, 0x15},
+		.vlan_header = {
+			.priority = 0,
+			.vlan_id = 0,
+			.cfi = 0,
+			.ether_type = 0x8100
+		}
+	};
+	val = (eth_header.dest_mac[3] << 24) | (eth_header.dest_mac[2] << 16) |
+	      (eth_header.dest_mac[1] << 8) | eth_header.dest_mac[0] ;
+	sg_write32(csr_reg_base, CDMA_CSR_148_Setting, val);
+	printf("[CDMA_CSR_148_Setting] expected value:0x%x\n", val);
+	read_val = sg_read32(csr_reg_base, CDMA_CSR_151_Setting);
+	printf("[CDMA_CSR_148_Setting] real value:0x%x\n", read_val);
+	
+	val = (eth_header.source_mac[1] << 24) | (eth_header.source_mac[0] << 16) |
+		(eth_header.dest_mac[4] << 8) | eth_header.dest_mac[5];
+	sg_write32(csr_reg_base, CDMA_CSR_149_Setting, val);
+	printf("[CDMA_CSR_149_Setting] expected value:0x%x\n", val);
+	read_val = sg_read32(csr_reg_base, CDMA_CSR_151_Setting);
+	printf("[CDMA_CSR_149_Setting] real value:0x%x\n", read_val);
+
+	val = (eth_header.source_mac[5] << 24) | (eth_header.source_mac[4] << 16) |
+		(eth_header.source_mac[3] << 8) | eth_header.source_mac[2];
+	sg_write32(csr_reg_base, CDMA_CSR_150_Setting, val);
+	printf("[CDMA_CSR_150_Setting] expected value:0x%x\n", val);
+	read_val = sg_read32(csr_reg_base, CDMA_CSR_151_Setting);
+	printf("[CDMA_CSR_150_Setting] real value:0x%x\n", read_val);
+
+	vlan_header[0] = (eth_header.vlan_header.ether_type >> 8) & 0xff;
+	vlan_header[1] = eth_header.vlan_header.ether_type & 0xff;
+	vlan_header[2] = (eth_header.vlan_header.priority << 5 ) | 
+			 (eth_header.vlan_header.priority << 4 ) |
+			 ((eth_header.vlan_header.vlan_id >> 8) & 0xf);
+	vlan_header[3] = (eth_header.vlan_header.vlan_id & 0xff);
+	val = (vlan_header[3] << 24) | (vlan_header[2] << 16) |
+		(vlan_header[1] << 8) | vlan_header[3];
+	sg_write32(csr_reg_base, CDMA_CSR_151_Setting, val);
+	printf("[CDMA_CSR_151_Setting] expected value:0x%x\n", val);
+	read_val = sg_read32(csr_reg_base, CDMA_CSR_151_Setting);
+	printf("[CDMA_CSR_151_Setting] real value:0x%x\n", read_val);
 }
-
-u32 sg_read32(uintptr_t  base, u32 offset)
-{
-	return mmio_read_32((base + offset));
-}
-
-void* mmap_dma_phy_addr(void) {
-	int mem_fd;
-    	void *mapped_memory;
-	mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
-	if (mem_fd == -1) {
-		printf("Error opening /dev/mem");
-		exit(EXIT_FAILURE);
-   	}
-	mapped_memory = mmap(NULL, CDMA_MEMORY_RANGE, PROT_READ | PROT_WRITE, MAP_SHARED, 
-				mem_fd, CDMA_PHY_ADDRESS_START);
-	if (mapped_memory == MAP_FAILED) {
-		printf("Error mapping memory");
-		close(mem_fd);
-		exit(EXIT_FAILURE);
-    	}
-	close(mem_fd);
-
-    	return mapped_memory;
-}
-
-void* mmap_ddr_phy_addr(void) {
-	int mem_fd;
-    	void *mapped_memory;
-	mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
-	if (mem_fd == -1) {
-		printf("Error opening /dev/mem");
-		exit(EXIT_FAILURE);
-   	}
-	mapped_memory = mmap(NULL, DDR_MEMORY_RANGE, PROT_READ | PROT_WRITE, MAP_SHARED, 
-				mem_fd, DDR_PHY_ADDRESS_START);
-	if (mapped_memory == MAP_FAILED) {
-		printf("Error mapping memory");
-		close(mem_fd);
-		exit(EXIT_FAILURE);
-    	}
-	close(mem_fd);
-
-    	return mapped_memory;
-}
-
-
-void munmap_dma_reg(void* mapped_memory, size_t size) {
-   	if (munmap(mapped_memory, size) == -1) {
-		printf("Error unmapping memory");
-		exit(EXIT_FAILURE);
-    	}
-}
-
 static void cdma_p2p_normal_csr_config(uintptr_t csr_reg_base){
 	u32 reg_val = 0;
 
-	/* enable replay function */
-	/* enable hardware replay function*/
+	/* enable replay and hardware replayfunction */
 	reg_val = sg_read32(csr_reg_base, CDMA_CSR_0_OFFSET);
 	reg_val |= ((1 << REG_CONNECTION_ON) | (1 << REG_HW_REPLAY_EN));
 	sg_write32(csr_reg_base, CDMA_CSR_0_OFFSET,reg_val);
@@ -105,17 +84,17 @@ static void cdma_p2p_normal_csr_config(uintptr_t csr_reg_base){
 	sg_write32(csr_reg_base, CDMA_CSR_4_OFFSET, reg_val);
 	/*when occur replay overflow, set this reg to recontinue*/
 
-	/*CDMA own tx channel id for mtl fab*/
-	/*CDMA own rx channel id for mtl fab*/
-	
+	/* IP header config*/
+	eth_header_construction(csr_reg_base);
+	/*config CDMA own tx/rx channel id and prio */
 	reg_val = sg_read32(csr_reg_base, MTL_FAB_CSR_00);
 	reg_val &= ~( 0xf << REG_CDMA_TX_CH_ID);
-	reg_val |=  ( 0xf << REG_CDMA_TX_CH_ID);
+	reg_val |=  ( CDMA_TX_CHANNEL << REG_CDMA_TX_CH_ID);
 	reg_val &= ~( 0xf << REG_CDMA_RX_CH_ID);
-	reg_val |=  ( 0xf << REG_CDMA_RX_CH_ID);
+	reg_val |=  ( CDMA_RX_CHANNEL << REG_CDMA_RX_CH_ID);
 	reg_val &= ~( 0x1 << REG_CDMA_FAB_BYPASS);
 	reg_val &= ~( 0x3 << REG_CDMA_FAB_ARBITRATION);
-	reg_val |=  ( 0x1 << REG_CDMA_FAB_ARBITRATION);
+	//reg_val |=  ( 0x1 << REG_CDMA_FAB_ARBITRATION);
 	sg_write32(csr_reg_base, MTL_FAB_CSR_00, reg_val);
 	/* WRITE c2c_rn */
 	reg_val = sg_read32(csr_reg_base, CDMA_CSR_141_OFFSET);
@@ -199,7 +178,7 @@ int testcase_cdma_p2p_normal_pio(char* dma_base_mmap,
 	 return 0;
 }
 
-#define DESC_MODE
+//#define DESC_MODE
 
 #if defined(DESC_MODE)
 
@@ -305,20 +284,27 @@ int testcase_cdma_p2p_normal_desc(char* dma_base_mmap,
 #endif
 
 int main()
-{
+{	
+	size_t dma_length = CDMA_MEMORY_RANGE;
+	off_t  dma_offset = CDMA_PHY_ADDRESS_START;
+	size_t ddr_length = DDR_MEMORY_RANGE;
+	off_t  ddr_offset = DDR_PHY_ADDRESS_START;
 	int src_format;
-	u32 data_length = 1;
+	u32 data_length = 256;
 	u64 dst_mem_start_addr = 0x2000;
 
 
-	char* dma_mapped_memory = mmap_dma_phy_addr();
-	char* ddr_mapped_memory = mmap_ddr_phy_addr();
+	char* dma_mapped_memory = (char*)mmap_phy_addr(dma_length, dma_offset);
+	char* ddr_mapped_memory = (char*)mmap_phy_addr(ddr_length, ddr_offset);
 	
 	uintptr_t ddr_value_virtual = (uintptr_t)(ddr_mapped_memory + DDR_PHY_OFFSET);
  	uintptr_t ddr_value_phy = DDR_PHY_ADDRESS_START + DDR_PHY_OFFSET;
 	printf("ddr_value_virtual:0x%lx\n", ddr_value_virtual);
-	sg_write32(ddr_value_virtual, 0x00, 0x13);
-	u32 ddr_value = sg_read32(ddr_value_virtual, 0x00);
+	
+	for(int i = 0; i < 256 ; i++) {
+		sg_write32(ddr_value_virtual, i * 4, i);
+	}
+	u32 ddr_value = sg_read32(ddr_value_virtual, 0x30);
 	printf("ddr_value:%u\n", ddr_value);
 
   	testcase_cdma_p2p_normal_pio((char*)dma_mapped_memory,
@@ -326,5 +312,9 @@ int main()
 				(int)DATA_INT32,
 				data_length,
 				dst_mem_start_addr);
+
+	munmap_dma_reg(dma_length, dma_mapped_memory);
+	munmap_dma_reg(ddr_length, ddr_mapped_memory);
+
 	return 0;
 }
