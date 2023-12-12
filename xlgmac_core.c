@@ -1,4 +1,4 @@
-#include "xlgmac_vt.h"
+#include "xlgmac_core.h"
 #include "cdma_p2p_common.h"
 
 
