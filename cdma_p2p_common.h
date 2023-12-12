@@ -14,8 +14,8 @@
 #include "mmio.h"
 
 
-#define	CDMA_RX_CHANNEL		0xf
-#define	CDMA_TX_CHANNEL		0xf
+#define	CDMA_RX_CHANNEL		0x0
+#define	CDMA_TX_CHANNEL		0x0
 
 
 u32 sg_read32(uintptr_t  base, u32 offset);

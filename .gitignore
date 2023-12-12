@@ -2,3 +2,4 @@ build/
 .vscode/
 backdoor/
 rootfs.ext2*
+test_cdma_p2p_x86

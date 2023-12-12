@@ -1,6 +1,6 @@
 #include "xlgmac_vt.h"
 #include "cdma_p2p_common.h"
-#include "bm_types.h"
+
 
 
 #define VLAN_FILTER_NUM		4

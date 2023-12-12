@@ -154,6 +154,7 @@ typedef struct {
 #define REG_DES_CLR		2
 #define REG_CONNECTION_ON	6
 #define	REG_HW_REPLAY_EN	7
+#define REG_ETH_CSR_UPDT	10
 
 
 
