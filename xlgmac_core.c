@@ -5,6 +5,8 @@
 
 #define VLAN_FILTER_NUM		4
 
+u32 vlan_filter[VLAN_FILTER_NUM];
+
 static int xlgmac_rx_queue_prio(char* xlgmac_mapped_memory, u8 queue, u8 prio){
 	u32 val;
 	int ret = queue;
@@ -196,63 +198,54 @@ int xlgmac_add_vlan_filter(char* xlgmac_mapped_memory, u8 index, u16 vlan_id) {
 
 	// for(int index = 0; index < VLAN_FILTER_NUM; index++)
 	// 	xlgmac_write_vlan_filter(xlgmac_mapped_memory,index,index + 10);
-
+	vlan_filter[index] = vlan_id;
 	ret = xlgmac_write_vlan_filter(xlgmac_mapped_memory, index, vlan_id);
 
 	return ret;
 }
 
-int xlgmac_set_loopback_mode(char* xlgmac_mapped_memory, u8 mode) {
-	u32 val;
-	uintptr_t xlgmac_reg_addr = (uintptr_t)(xlgmac_mapped_memory);
+int xlgmac_del_vlan_filter(char* xlgmac_mapped_memory, u8 index, u16 vlan_id) {
 
-	if (1 == mode) {
-		val = sg_read32(xlgmac_reg_addr, MAC_Rx_Configuration);
-		val |= (1 << LM);
-		sg_write32(xlgmac_reg_addr, MAC_Rx_Configuration, val);
-		printf("XLGMAC:enable LoopBack Mode\n");
-	} else if (0 == mode){
-		val = sg_read32(xlgmac_reg_addr, MAC_Rx_Configuration);
-		val &= ~(1 << LM);
-		sg_write32(xlgmac_reg_addr, MAC_Rx_Configuration, val);
-		printf("XLGMAC:disable LoopBack Mode\n");
+	int ret;
+
+	if(vlan_id == vlan_filter[index]) {
+		ret = xlgmac_write_vlan_filter(xlgmac_mapped_memory, index, 0);
+		printf("del filter_%d vid %u ", index, vlan_id);
+	} else {
+		printf("no filter's vid = %u", vlan_id);
 	}
-}
-
-int xlgmac_set_rx_crc_strip(char* xlgmac_mapped_memory) {
-	u32 val;
-	uintptr_t xlgmac_reg_addr = (uintptr_t)(xlgmac_mapped_memory);
-
-	val = sg_read32(xlgmac_reg_addr, MAC_Rx_Configuration);
-	val |= ((1 << RE) | (1 << ACS) | (1 << CST));
-	sg_write32(xlgmac_reg_addr, MAC_Rx_Configuration, val);
-	printf("XLGMAC:set_rx_crc_strip\n");
-}
-
-// int main(void){
-
-// 	size_t xlgmac_length = XLGMAC_MEMORY_RANGE;
-// 	off_t  xlgmac_offset = XLGMAC_ETH_BASE_START;
-// 	u8 channel = CDMA_RX_CHANNEL;
-// 	int ret;
-// 	char* xlgmac_mapped_memory = (char*)mmap_phy_addr(xlgmac_length, xlgmac_offset);
-
-// 	/* Set RX priorities */
-// 	xlgmac_rx_queue_prio(xlgmac_mapped_memory, channel, 1);
 	
-// 	/* Dynastic Map RX MTL to DMA channels*/
-// 	xlgmac_dmap_mtl_to_dma(xlgmac_mapped_memory, channel);
+	return ret;
+}
 
-// 	ret = xlgmac_add_vlan_filter(xlgmac_mapped_memory, 0, 608);
 
-// 	if(ret != 0) {
-// 		printf("xlgmac_add_vlan_filter fail!\n");
-// 	}else {
-// 		printf("xlgmac_add_vlan_filter success\n");
-// 	}
 
-// 	munmap_dma_reg(xlgmac_length, xlgmac_mapped_memory);
-// }
+int main(void){
+
+	size_t xlgmac_length = XLGMAC_MEMORY_RANGE;
+	off_t  xlgmac_offset = XLGMAC_ETH_BASE_START;
+	u8 channel = CDMA_RX_CHANNEL;
+	u8 prio = 1;
+	u8 filter_index = 0;
+	int ret;
+	char* xlgmac_mapped_memory = (char*)mmap_phy_addr(xlgmac_length, xlgmac_offset);
+
+	/* Set RX priorities */
+	//xlgmac_rx_queue_prio(xlgmac_mapped_memory, channel, prio);
+	
+	/* Dynastic Map RX MTL to DMA channels*/
+	//xlgmac_dmap_mtl_to_dma(xlgmac_mapped_memory, channel);
+	
+	ret = xlgmac_add_vlan_filter(xlgmac_mapped_memory, filter_index, 608);
+
+	if(ret != 0) {
+		printf("xlgmac_add_vlan_filter fail!\n");
+	}else {
+		printf("xlgmac_add_vlan_filter success,\n");
+	}
+
+	munmap_dma_reg(xlgmac_length, xlgmac_mapped_memory);
+}
 
 
 

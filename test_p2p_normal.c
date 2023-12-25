@@ -10,6 +10,7 @@
 #include "cdma_p2p_common.h"
 #include "cdma_p2p_normal.h"
 #include "xlgmac_core.h"
+#include "cdma_pmu.h"
 
 // ee:2d:a3:a0:60:17   6c:3c:8c:74:cc:c4
 static void eth_header_construction(uintptr_t csr_reg_base) {
@@ -147,15 +148,15 @@ int testcase_cdma_p2p_normal_pio(char* dma_base_mmap,
 	u64 dst_addr_l32 = (dst_mem_start_addr ) & 0xffffffff;
 	u32 count = 1500;
 
-	// printf("src_mem_start_addr:0x%lx src_addr_h13:0x%lx src_addr_l32 :0x%lx\n",
-	// 	src_mem_start_addr, src_addr_h13, src_addr_l32);
-	// printf("dst_mem_start_addr:0x%lx dst_addr_h13:0x%lx dst_addr_l32:0x%lx\n",
-	// 	dst_mem_start_addr, dst_addr_h13, dst_addr_l32);
+	debug_log("src_mem_start_addr:0x%lx src_addr_h13:0x%lx src_addr_l32 :0x%lx\n",
+	 	src_mem_start_addr, src_addr_h13, src_addr_l32);
+	debug_log("dst_mem_start_addr:0x%lx dst_addr_h13:0x%lx dst_addr_l32:0x%lx\n",
+	 	dst_mem_start_addr, dst_addr_h13, dst_addr_l32);
 	
 	uintptr_t cmd_reg_base = (uintptr_t)(dma_base_mmap + CMD_REG_OFFSET);
 	uintptr_t desc_updt = (uintptr_t)(dma_base_mmap + DESC_UPDT_OFFSET);
 	uintptr_t csr_reg_base = (uintptr_t)(dma_base_mmap + CSR_REG_OFFSET);
-	printf("cmd_reg_base:0x%lx, desc_updt:0x%lx, csr_reg_base :0x%lx\n ", \
+	debug_log("cmd_reg_base:0x%lx, desc_updt:0x%lx, csr_reg_base :0x%lx\n ", \
 		cmd_reg_base, desc_updt, csr_reg_base);
 
 	cdma_p2p_normal_csr_config(csr_reg_base);
@@ -166,21 +167,21 @@ int testcase_cdma_p2p_normal_pio(char* dma_base_mmap,
 	      (src_addr_h13 << CDMA_CMD_SRC_START_ADDR_H13) |
 	      (dst_addr_h13 << CDMA_CMD_DST_START_ADDR_H13);
 	mmio_write_64(cmd_reg_base, val);
-	printf("[CDMA_CMD_0]:0x%lx\n", val);
+	debug_log("[CDMA_CMD_0]:0x%lx\n", val);
 	
 	val = (data_length << CDMA_CMD_CMD_LENGTH) |
 	       (src_addr_l32 << CDMA_CMD_SRC_START_ADDR_L32) ;
 	mmio_write_64(cmd_reg_base + 0x8, val);
-	printf("[CDMA_CMD_1]:0x%lx\n", val);
+	debug_log("[CDMA_CMD_1]:0x%lx\n", val);
 	
 
 	val = (dst_addr_l32 << CDMA_CMD_DST_START_ADDR_L32);
 	mmio_write_64(cmd_reg_base + 0x10, val);
-	printf("[CDMA_CMD_2] low :0x%lx\n", val);
+	debug_log("[CDMA_CMD_2] low :0x%lx\n", val);
 
 	/* In pio mode write 1 to update des*/
 	sg_write32(desc_updt, REG_DESCRIPTOR_UPDATE, 1);
-	printf("write CDMA_UPDT_DES_UPDT to 0x1\n");
+	debug_log("write CDMA_UPDT_DES_UPDT to 0x1\n");
 
 	/* poll */
 	while ((sg_read32(csr_reg_base,CDMA_CSR_20_Setting) & 0x1) != 0x1) {
@@ -318,6 +319,7 @@ int main(int argc, char *argv[])
 	off_t  xlgmac_offset = XLGMAC_ETH_BASE_START;
 	char* endptr;
 	u8 desc_num;
+	u8 filter_index = 0;
 	int src_format;
 	int ret;
 
@@ -344,7 +346,12 @@ int main(int argc, char *argv[])
 	uintptr_t src_ddr_addr_virtual = (uintptr_t)(ddr_mapped_memory + src_mem_start_addr);
 	uintptr_t dst_ddr_value_virtual = (uintptr_t)(ddr_mapped_memory + dst_mem_start_addr);
 	write_data_32(src_ddr_addr_virtual, dst_ddr_value_virtual, data_length);
+	
+#ifdef USING_PMU
 
+	enable_cdma_perf_monitor((char*)dma_mapped_memory, CDMA_PMU_START_ADDR, CDMA_PMU_SIZE);
+
+#endif
 	if ((!strcmp(argv[4], "pio")) && (argc == 5)) {
 		printf("[testcase:P2P NORMAL PIO] PIO_num:%d\n", 1);
 		ret = testcase_cdma_p2p_normal_pio((char*)dma_mapped_memory,
@@ -366,33 +373,22 @@ int main(int argc, char *argv[])
 		printf("Usage: test_cdma_p2p src_addr dst_addr size pio/desc [desc_num] \n");
 		goto munmap;
 	}
+
+	
   	
 	ret = data_compare(src_ddr_addr_virtual, dst_ddr_value_virtual, 
 			  dst_mem_start_addr, data_length);
+
+#ifdef USING_PMU
+	usleep(10);
+	disable_cdma_perf_monitor((char*)dma_mapped_memory);
+	show_cdma_pmu_data(CDMA_PMU_START_ADDR, 0);
+#endif
+
 #if 0
 	if ((argc == 7 && !strcmp(argv[4], "pio") &&  !strcmp(argv[6], "r")) || 
 	    (argc == 6 && !strcmp(argv[4], "desc") && !strcmp(argv[5], "r"))) {
-		while(1) {
-			unsigned char buffer[1500];
-			int counter;
-			int sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-			if (sockfd < 0) {
-				perror("socket error\n");
-				munmap_dma_reg(dma_length, dma_mapped_memory);
-				munmap_dma_reg(ddr_length, ddr_mapped_memory);
-				exit(EXIT_FAILURE);
-			}
-			printf("start listening ...\n");
-			int num_bytes = recvfrom(sockfd, buffer, 1500, 0, NULL, NULL);
-			dump(buffer, 64);
-			counter++;
-			printf("counter:%d\n",counter);
-			if (counter == 6){
-				break;
-			}
-
-		}
-
+		
 	}
 #endif
 

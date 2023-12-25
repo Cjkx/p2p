@@ -1,6 +1,7 @@
 #include "cdma_p2p_common.h"
 #include "cdma_p2p_normal.h"
 #include <ctype.h>
+#include "xlgmac_core.h"
 
 void sg_write32(uintptr_t base, u32 offset, u32 value)
 {
@@ -273,3 +274,29 @@ void p2p_sys_end_chain_config(uintptr_t cmd_reg_base) {
 	printf("[CDMA_CMD_0]:0x%lx\n", reg_val);
 }
 
+int xlgmac_set_loopback_mode(char* xlgmac_mapped_memory, u8 mode) {
+	u32 val;
+	uintptr_t xlgmac_reg_addr = (uintptr_t)(xlgmac_mapped_memory);
+
+	if (1 == mode) {
+		val = sg_read32(xlgmac_reg_addr, MAC_Rx_Configuration);
+		val |= (1 << LM);
+		sg_write32(xlgmac_reg_addr, MAC_Rx_Configuration, val);
+		printf("XLGMAC:enable LoopBack Mode\n");
+	} else if (0 == mode){
+		val = sg_read32(xlgmac_reg_addr, MAC_Rx_Configuration);
+		val &= ~(1 << LM);
+		sg_write32(xlgmac_reg_addr, MAC_Rx_Configuration, val);
+		printf("XLGMAC:disable LoopBack Mode\n");
+	}
+}
+
+int xlgmac_set_rx_crc_strip(char* xlgmac_mapped_memory) {
+	u32 val;
+	uintptr_t xlgmac_reg_addr = (uintptr_t)(xlgmac_mapped_memory);
+
+	val = sg_read32(xlgmac_reg_addr, MAC_Rx_Configuration);
+	val |= ((1 << RE) | (1 << ACS) | (1 << CST));
+	sg_write32(xlgmac_reg_addr, MAC_Rx_Configuration, val);
+	printf("XLGMAC:set_rx_crc_strip\n");
+}

@@ -82,8 +82,7 @@ typedef enum {
 #define LM				10
 
 
-int xlgmac_set_rx_crc_strip(char* xlgmac_mapped_memory);
-int xlgmac_set_loopback_mode(char* xlgmac_mapped_memory, u8 mode);
+
 
 
 

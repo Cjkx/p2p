@@ -306,8 +306,6 @@ int testcase_p2p_tcp_rcv_mode(char* dma_base_mmap,
 	u32 count = 1500;
 	u32 crc_len = 0;
 	u32 cmd_id = 0;
-	u32 cmd_id_send;
-	u32 cmd_id_rcv;
 	uintptr_t desc_current_virtual_addr;
 	uintptr_t desc_phy_eaddr;
 
@@ -337,13 +335,29 @@ int testcase_p2p_tcp_rcv_mode(char* dma_base_mmap,
 
 	p2p_enable_desc(csr_reg_base, TCP_RECEIVE);
 
+	// p2p_poll(csr_reg_base, TCP_RECEIVE);
+	// // clear intr
+	// reg_val = sg_read32(csr_reg_base, CDMA_CSR_20_Setting);
+	// reg_val |= (1 << INTR_TCP_RCV_CMD_DONE);
+	// sg_write32(csr_reg_base, CDMA_CSR_20_Setting, reg_val);
+	// printf("[TCP RCV MODE] CDMA polling complete\n");
+	
+	
+}
+
+static void rcv_poll(char* dma_base_mmap) {
+	uintptr_t csr_reg_base = (uintptr_t)(dma_base_mmap + CSR_REG_OFFSET);
+	u32 cmd_id_send;
+	u32 cmd_id_rcv;
+	u32 reg_val = 0;
+
 	p2p_poll(csr_reg_base, TCP_RECEIVE);
 	// clear intr
 	reg_val = sg_read32(csr_reg_base, CDMA_CSR_20_Setting);
 	reg_val |= (1 << INTR_TCP_RCV_CMD_DONE);
 	sg_write32(csr_reg_base, CDMA_CSR_20_Setting, reg_val);
 	printf("[TCP RCV MODE] CDMA polling complete\n");
-	
+
 	cmd_id_send = sg_read32(csr_reg_base, TCP_CSR_14_Setting);
 	cmd_id_rcv = sg_read32(csr_reg_base, TCP_CSR_13_Setting);
 	if(cmd_id_send == cmd_id_rcv){
@@ -353,18 +367,6 @@ int testcase_p2p_tcp_rcv_mode(char* dma_base_mmap,
 		printf("[TCP RCV MODE] cmd_id_send:%d, cmd_id_rcv:%d, data rcv fail! \n",
 			cmd_id_send,cmd_id_rcv);
 	}
-}
-
-static void rcv_poll(char* dma_base_mmap) {
-	uintptr_t csr_reg_base = (uintptr_t)(dma_base_mmap + CSR_REG_OFFSET);
-	u32 reg_val = 0;
-
-	p2p_poll(csr_reg_base, TCP_RECEIVE);
-	// clear intr
-	reg_val = sg_read32(csr_reg_base, CDMA_CSR_20_Setting);
-	reg_val |= (1 << INTR_TCP_RCV_CMD_DONE);
-	sg_write32(csr_reg_base, CDMA_CSR_20_Setting, reg_val);
-	printf("[TCP RCV MODE] CDMA polling complete\n");
 }
 
 int main(int argc, char *argv[])

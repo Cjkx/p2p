@@ -7,10 +7,15 @@ set (CMAKE_C_COMPILER
 
 project (test_cdma_p2p)
 
+include_directories(include)
 
-set(SOURCES  cdma_p2p_common.c xlgmac_core.c)
+set(SOURCES  cdma_p2p_common.c cdma_pmu.c )
 
-add_executable(test_p2p_normal ${SOURCES} test_cdma_p2p.c)
+
+add_executable(test_xlgmac_core ${SOURCES} xlgmac_core.c)
+add_executable(test_p2p_normal ${SOURCES} test_p2p_normal.c)
 add_executable(test_p2p_tcp ${SOURCES} test_p2p_tcp.c)
+
+
 
 # target_include_directories(test_cdma_p2p PRIVATE ${PROJECT_SOURCE_DIR})
