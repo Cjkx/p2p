@@ -37,6 +37,20 @@ typedef enum {
 	SYS_CMD_NUM,
 } SYS_CMD_TYPE;
 
+typedef enum {
+	TCP_SEND = 1,
+	TCP_RECEIVE = 2,
+	NORMAL_GENERAL_DESC = 3,
+	NORMAL_GENERAL_PIO = 4,
+} P2P_MODE;
+
+typedef enum {
+	FD = 1,
+	LD = 2,
+	MD = 3,
+	FLD = 4,
+} DESC_FLAG;
+
 typedef struct {
     u8 dest_mac[6];
     u8 source_mac[6];
@@ -48,38 +62,7 @@ typedef struct {
     } vlan_header;
 } eth_header_t;
 
-typedef struct {
-	uint32_t intr_en : 1;
-	uint32_t reserved1 : 2;
-	uint32_t breakpoint : 1;
-	uint32_t cmd_type : 4;
-	uint32_t cmd_special_function : 3;
-	uint32_t fill_constant_en : 1;
-	uint32_t src_data_format : 4;
-	uint32_t src_start_addr_h13 : 13;
-	uint32_t reserved2 : 3;
-	uint32_t dst_start_addr_h13 : 13;
-	uint32_t reserved3 : 19;
-	uint32_t cmd_length : 32;
-	uint32_t src_start_addr_l32 : 32;
-	uint32_t dst_start_addr_l32 : 32;
-	uint32_t reserved4 : 32;
-	uint32_t reserved5 : 32;
-	uint32_t reserved6 : 32;
-} dma_general_desc;
 
-typedef struct {
-	uint32_t intr_en : 1;
-	uint32_t reserved1 : 2;
-	uint32_t breakpoint : 1;
-	uint32_t cmd_type : 4;
-	uint32_t cmd_special_function : 3;
-	uint32_t reserved2 : 21;
-	uint32_t constant_value_l32 : 32;
-	uint32_t constant_value_h32 : 32;
-	uint32_t reg_sel : 4;
-	uint32_t reserved3 : 28;
-} dma_sys_desc;
 
 
 
@@ -88,30 +71,35 @@ typedef struct {
 #define CDMA_MEMORY_RANGE 		(CDMA_PHY_ADDRESS_END -\
 					CDMA_PHY_ADDRESS_START + 1)
 
-//fffe0000-ffffffff
+
+
+#define DDR_PHY_ADDRESS_START 		0x0000000000ULL
+#define DDR_PHY_ADDRESS_END 		0x001FFFFFFFULL
+#define DDR_MEMORY_RANGE 		(DDR_PHY_ADDRESS_END -\
+					DDR_PHY_ADDRESS_START + 1)
+
 
 // #define CDMA_PHY_ADDRESS_START 		0x3ee3ff000LL
 // #define CDMA_PHY_ADDRESS_END  		0x3f71fffffLL
 // #define CDMA_MEMORY_RANGE 		(CDMA_PHY_ADDRESS_END -\
 // 					CDMA_PHY_ADDRESS_START + 1)
 
-#define DDR_PHY_ADDRESS_START 		0x0000000000ULL
-#define DDR_PHY_ADDRESS_END 		0x007FFFFFFFULL
-#define DDR_MEMORY_RANGE 		(DDR_PHY_ADDRESS_END -\
-					DDR_PHY_ADDRESS_START + 1)
-
 // #define DDR_PHY_ADDRESS_START 		0x3ed400000LL
 // #define DDR_PHY_ADDRESS_END 		0x3ee1fffffLL
 // #define DDR_MEMORY_RANGE 		(DDR_PHY_ADDRESS_END -\
 // 					DDR_PHY_ADDRESS_START + 1)
 
-#define DDR_PHY_OFFSET			0x1000
-#define GENERAL_DESC_PHY_OFFSET		0X110000000
-#define SYS_DESC_PHY_OFFSET		0X120000000
+#define GENERAL_DESC_PHY_OFFSET		0X10000000
+#define TCP_SEND_DESC_PHY_OFFSET	0X11000000
+#define TCP_RCV_DESC_PHY_OFFSET		0X12000000
 
 #define CMD_REG_OFFSET			0x0000
 #define DESC_UPDT_OFFSET		0x0400
 #define CSR_REG_OFFSET			0x1000
+
+#define GENERAL_CMD_SIZE		0x20
+#define TCP_SEND_CMD_SIZE 		0X10
+#define TCP_RCV_CMD_SIZE 		0X10
 
 // CMD_GENERAL_REG
 #define CDMA_CMD_INTR_ENABLE		0
@@ -122,11 +110,32 @@ typedef struct {
 #define CDMA_CMD_SRC_DATA_FORMAT	12
 #define CDMA_CMD_SRC_START_ADDR_H13	16
 #define CDMA_CMD_DST_START_ADDR_H13	32
-
 #define CDMA_CMD_CMD_LENGTH		0
 #define CDMA_CMD_SRC_START_ADDR_L32	32
-
 #define CDMA_CMD_DST_START_ADDR_L32	0
+
+// CDMA_TCP_SEND_REG
+#define CMD_TCP_SEND_INTR_ENABLE	0
+#define CMD_TCP_SEND_OWN		1
+#define CMD_TCP_SEND_FD			2
+#define CMD_TCP_SEND_LD			3
+#define CMD_TCP_SEND_CMD_TYPE		4
+#define CMD_TCP_SEND_BUF_LEN		8
+#define CMD_TCP_SEND_BREAKPOINT		24
+#define CMD_TCP_SEND_FRAME_LEN		32
+#define CMD_TCP_SEND_BUF_ADDR_L32	0
+#define CMD_TCP_SEND_BUF_ADDR_H8	32
+#define CMD_TCP_SEND_CMD_ID		40
+
+//CMD_TCP_RCV_REG
+#define CMD_TCP_RCV_INTR_ENABLE		0
+#define CMD_TCP_RCV_OWN			1
+#define CMD_TCP_RCV_CMD_TYPE		4
+#define CMD_TCP_RCV_BUF_LEN		8
+#define CMD_TCP_RCV_BREAKPOINT		24
+#define CMD_TCP_RCV_BUF_ADDR_L32	0
+#define CMD_TCP_RCV_BUF_ADDR_H8		32
+#define CMD_TCP_RCV_CMD_ID		40
 
 // DESCRIPTOR_UPDT
 #define REG_DESCRIPTOR_UPDATE 0
@@ -138,14 +147,29 @@ typedef struct {
 #define CDMA_CSR_5_OFFSET		0x14
 #define CDMA_CSR_6_OFFSET		0x18
 #define CDMA_CSR_9_OFFSET		0x2c
+#define CDMA_CSR_10_OFFSET		0x30
 #define CDMA_CSR_20_Setting		0x58	//intr
 #define REG_BASE_ADDR_REGINE0		0x5c
 #define CDMA_CSR_141_OFFSET		0x23c
 #define CDMA_CSR_142_OFFSET		0x240
+#define CDMA_CSR_143_Setting		0x244
+#define CDMA_CSR_144_Setting		0x248
 #define CDMA_CSR_148_Setting		0x258
 #define CDMA_CSR_149_Setting		0x25c
 #define CDMA_CSR_150_Setting		0x260
 #define CDMA_CSR_151_Setting		0x264
+#define TCP_CSR_02_Setting		0x308
+#define TCP_CSR_03_Setting		0x30c
+#define TCP_CSR_04_Setting		0x310
+#define TCP_CSR_05_Setting		0x314
+#define TCP_CSR_06_Setting		0x318
+#define TCP_CSR_07_Setting		0x31c
+#define TCP_CSR_08_Setting		0x320
+#define TCP_CSR_09_Setting		0x324
+#define TCP_CSR_10_Setting		0x328
+#define TCP_CSR_13_Setting		0x334
+#define TCP_CSR_14_Setting		0x338
+#define TCP_CSR_20_Setting		0x350
 #define MTL_FAB_CSR_00			0x3c0
 
 // CDMA_CSR_0
@@ -182,33 +206,32 @@ typedef struct {
 #define REG_DES_ADDR_H1			0
 // CDMA_CSR_20_Setting
 #define INTR_CMD_DONE_STATUS		0
+#define INTR_TCP_RCV_CMD_DONE		28
+#define INTR_TCP_SEND_CMD_DONE		29
 
 // CDMA_CSR_141
 #define  REG_INTRA_DIE_READ_ADDR_H8	0	//bit 0~7
 #define  REG_INTRA_DIE_WRITE_ADDR_H8	8	//bit 8~15
 // CDMA_CSR_142
-#define reg_des_read_addr_h8		0	//bit 0~7
-#define reg_des_write_addr_h8		8	//bit 8~15
-
+#define REG_DES_READ_ADDR_H8		0	//bit 0~7
+#define REG_DES_WRITE_ADDR_H8		8	//bit 8~15
+// CDMA_CSR_143
+#define REG_TXCH_READ_ADDR_H8		0
+#define REG_TXCH_WRITE_ADDR_H8		8
+// CDMA_CSR_144
+#define REG_RXCH_READ_ADDR_H8		0
+#define REG_RXCH_WRITE_ADDR_H8		8
 // MTL_FAB_CSR_00
 #define REG_CDMA_TX_CH_ID		0	//bit 0~3
 #define REG_CDMA_RX_CH_ID		4	//bit 4~7
 #define REG_CDMA_FAB_ARBITRATION	8	//bit 8~9
 #define REG_CDMA_FAB_BYPASS		10
 
-
-
-
-
-
-// static inline void write128(uint64_t _addr, uint64_t _l64, uint64_t _h64) {
-//     asm volatile ("sdd %0, %1, (%2), 0, 4"
-// 	      :
-// 	      : "r"(_l64), "r"(_h64), "r"(_addr));
-// }
-
-// #define WRITE_CMD_CDMA(cmd_reg_base, offset, h64, l64) \
-// 	write128(cmd_reg_base + (offset << 4), l64, h64)
+// TCP_CSR_02_Setting
+#define REG_TCP_SEND_DES_MODE_ENABLE	0
+#define REG_TCP_RECEIVE_DES_MODE_ENABLE	1
+//  TCP_CSR_20_Setting
+#define REG_TCP_CSR_UPDT		0
 
 
 

@@ -3,3 +3,4 @@ build/
 backdoor/
 rootfs.ext2*
 test_cdma_p2p_x86
+raw_socket1/
