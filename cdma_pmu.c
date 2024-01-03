@@ -2,7 +2,7 @@
 #include "cdma_pmu.h"
 #include "cdma_p2p_normal.h"
 
-void enable_cdma_perf_monitor(char* dma_base_mmap, u64 start_addr, u32 size)
+void enable_cdma_perf_monitor(char* dma_base_mmap, char * ddr_base_map, u64 start_addr, u32 size)
 {
 	u32 start_addr_l32 = (u32)(start_addr >> 7);
 	u32 start_addr_h1 = (u32)(start_addr >> 39);
@@ -14,10 +14,14 @@ void enable_cdma_perf_monitor(char* dma_base_mmap, u64 start_addr, u32 size)
 	printf("enable cdma perf monitor size = 0x%x, start addr = 0x%lx, end addr = 0x%lx\n", 
 		 size, start_addr, end_addr);
 	
-	memset((u32 *)start_addr, 0, size);
+
+	
 	//flush_dcache_range(start_addr, size);
 
 	uintptr_t csr_reg_base = (uintptr_t)(dma_base_mmap + CSR_REG_OFFSET);
+	uintptr_t pmu_start_addr_virtual = (uintptr_t)(ddr_base_map + start_addr);
+	
+	//memset((u32 *)pmu_start_addr_virtual, 0, size);
 
 	sg_write32(csr_reg_base, CDMA_CSR_PMU_START_ADDR_L32, start_addr_l32);
 	sg_write32(csr_reg_base, CDMA_CSR_PMU_START_ADDR_H1, start_addr_h1);
@@ -51,13 +55,15 @@ void disable_cdma_perf_monitor(char* dma_base_mmap)
 	debug_log("write CDMA_CSR_PERF_MONITOR_EN to 0x0\n");
 }
 
-void show_cdma_pmu_data(u64 start_addr, int index)
+void show_cdma_pmu_data(char * ddr_base_map, u64 start_addr, int index)
 {
-	cdma_pmu_item_t *p = (cdma_pmu_item_t *)(start_addr) + index;
+	
+	uintptr_t pmu_start_addr_virtual = (uintptr_t)(ddr_base_map + start_addr);
 
+	cdma_pmu_item_t *p = (cdma_pmu_item_t *)(pmu_start_addr_virtual) + index;
 	//inval_dcache_range(start_addr + index * sizeof(cdma_pmu_item_t), sizeof(cdma_pmu_item_t));
 
-	printf("start addr is 0x%lx\n", mmio_read_64(start_addr));
+	printf("start addr is 0x%lx\n", mmio_read_64(pmu_start_addr_virtual));
 
 	printf("cdma record #%d, inst_id=0x%x inst_start_time=0x%x, inst_end_time=0x%x\n", index, p->inst_id, p->inst_start_time, p->inst_end_time);
 	printf("m0_data_aw_cntr=%d, m0_data_w_cntr=%d, m0_data_ar_cntr=%d\n", p->m0_data_aw_cntr, p->m0_data_w_cntr, p->m0_data_ar_cntr);

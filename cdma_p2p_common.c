@@ -1,6 +1,5 @@
 #include "cdma_p2p_common.h"
 #include "cdma_p2p_normal.h"
-#include <ctype.h>
 #include "xlgmac_core.h"
 
 void sg_write32(uintptr_t base, u32 offset, u32 value)

@@ -47,8 +47,8 @@ typedef struct {
 } cdma_pmu_item_t;
 
 
-void enable_cdma_perf_monitor(char* dma_base_mmap, u64 start_addr, u32 size);
+void enable_cdma_perf_monitor(char* dma_base_mmap, char * ddr_base_map, u64 start_addr, u32 size);
 void disable_cdma_perf_monitor(char* dma_base_mmap);
-void show_cdma_pmu_data(u64 start_addr, int index);
+void show_cdma_pmu_data(char * ddr_base_map, u64 start_addr, int index);
 
 #endif

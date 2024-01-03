@@ -15,6 +15,9 @@ typedef enum {
 } QUEUE_MODE;
 
 
+#define FLAG_FILTER_ADD     		1UL << 0
+#define FLAG_FILTER_DEL      		1UL << 1
+
 
 #define XLGMAC_ETH_BASE_START   	0x6c08000000ULL
 #define XLGMAC_ETH_BASE_END		0X6C0803FFFFULL
@@ -48,6 +51,7 @@ typedef enum {
 /* VLAN_TAG_DATA */
 #define VLAN_TAG_DATA_VEN		16
 #define VLAN_TAG_DATA_ETV		17
+#define VLAN_TAG_DATA_DOVLTC		18
 #define VLAN_TAG_CTRL_DMACHEN		24
 #define VLAN_TAG_CTRL_DMACHN		25
 

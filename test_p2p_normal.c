@@ -11,22 +11,33 @@
 #include "cdma_p2p_normal.h"
 #include "xlgmac_core.h"
 #include "cdma_pmu.h"
+#include "raw_tcp_ip.h"
 
+#define USING_PMU
+
+static u8 sec_length;
+
+void set_normal_eth_header(eth_header_t *eth, const char *src_mac_str, const char *dest_mac_str) {
+	parse_mac_address(src_mac_str, eth->source_mac);
+	parse_mac_address(dest_mac_str, eth->dest_mac);
+}
 // ee:2d:a3:a0:60:17   6c:3c:8c:74:cc:c4
 static void eth_header_construction(uintptr_t csr_reg_base) {
 	u32 val;
 	u8  vlan_header[4];
 	u32 read_val;
 	eth_header_t eth_header = {
-		.dest_mac = {0x6c, 0x3c, 0x8c, 0x74, 0xcc, 0xc4},
-		.source_mac = {0x6e, 0x40, 0x68, 0x7f, 0x97, 0x34},
+		.dest_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+		.source_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		.vlan_header = {
 			.ether_type = 0x8100, 
-			.priority = 0,
+			.priority = 1,
 			.cfi = 0,
-			.vlan_id = 0,	
+			.vlan_id = 608,	
 		}
 	};
+
+	set_normal_eth_header(&eth_header, "36:de:bb:03:0b:c9", "6c:3c:8c:74:cc:c4") ;
 	val = (eth_header.dest_mac[3] << 24) | (eth_header.dest_mac[2] << 16) |
 	      (eth_header.dest_mac[1] << 8) | eth_header.dest_mac[0] ;
 	sg_write32(csr_reg_base, CDMA_CSR_148_Setting, val);
@@ -76,16 +87,17 @@ static void cdma_p2p_normal_csr_config(uintptr_t csr_reg_base){
 	sg_write32(csr_reg_base, CDMA_CSR_0_OFFSET,reg_val);
 	printf("[CDMA_CSR_0_OFFSET]:0x%x\n", reg_val);
 	/* same subinst replay max times*/
-	reg_val = sg_read32(csr_reg_base, CDMA_CSR_4_OFFSET);
-	reg_val &= ~(0xf << REG_REPLAY_MAX_TIME);
-	reg_val |= (0xf << REG_REPLAY_MAX_TIME);
-	sg_write32(csr_reg_base, CDMA_CSR_4_OFFSET,reg_val);
-	printf("[CDMA_CSR_4_OFFSET]:0x%x\n", reg_val);
+	// reg_val = sg_read32(csr_reg_base, CDMA_CSR_4_OFFSET);
+	// reg_val &= ~(0xf << REG_REPLAY_MAX_TIME);
+	// reg_val |= (0xf << REG_REPLAY_MAX_TIME);
+	// sg_write32(csr_reg_base, CDMA_CSR_4_OFFSET,reg_val);
+	// printf("[CDMA_CSR_4_OFFSET]:0x%x\n", reg_val);
+
 	/* when time cnt is bigger than this reg, trigger timeout replay*/
-	reg_val = 0;
-	reg_val |= 0xffffffff;
-	sg_write32(csr_reg_base, CDMA_CSR_5_OFFSET, reg_val);
-	printf("[CDMA_CSR_5_OFFSET]:0x%x\n", reg_val);
+	// reg_val = 0;
+	// reg_val |= 0x19000;
+	// sg_write32(csr_reg_base, CDMA_CSR_5_OFFSET, reg_val);
+	// printf("[CDMA_CSR_5_OFFSET]:0x%x\n", reg_val);
 	/* config  VLAN_ID */
 
 	/* enable VLAN_ID */
@@ -99,7 +111,7 @@ static void cdma_p2p_normal_csr_config(uintptr_t csr_reg_base){
 	/* sec_length*/
 	reg_val = sg_read32(csr_reg_base, CDMA_CSR_4_OFFSET);
 	reg_val &= ~(7 << REG_SEC_LENGTH);
-	reg_val |= (5 << REG_SEC_LENGTH);
+	reg_val |= (sec_length << REG_SEC_LENGTH);
 	sg_write32(csr_reg_base, CDMA_CSR_4_OFFSET, reg_val);
 	printf("[CDMA_CSR_4_OFFSET]:0x%x\n", reg_val);
 	/*when occur replay overflow, set this reg to recontinue*/
@@ -288,17 +300,24 @@ int testcase_cdma_p2p_normal_desc(char* dma_base_mmap,
 {
 	u32 reg_val = 0;
 	int ret = 0;
-
+	u32 data_size;
 	uintptr_t csr_reg_base = (uintptr_t)(dma_base_mmap + CSR_REG_OFFSET);
 	uintptr_t general_desc_virtual_addr = (uintptr_t)(ddr_mapped_memory + GENERAL_DESC_PHY_OFFSET);
 	
 	printf("[NORMAL DESC MODE] csr_reg_base :0x%lx general_desc_virtual_addr:0x%lx\n ",
 		 csr_reg_base, general_desc_virtual_addr);
-	
+	data_size = 4;
 	cdma_p2p_normal_csr_config(csr_reg_base);
 	cdma_p2p_desc_csr_config(csr_reg_base);
-	cdma_p2p_general_cmd_config(general_desc_virtual_addr, src_mem_start_addr, dst_mem_start_addr,
+	for(int i = 0; i < desc_num; i++) {
+		cdma_p2p_general_cmd_config(general_desc_virtual_addr, src_mem_start_addr, dst_mem_start_addr,
 				    src_format, data_length);
+		if(i == desc_num - 1)
+			break;
+		general_desc_virtual_addr += GENERAL_CMD_SIZE;
+		src_mem_start_addr += data_length * data_size;
+		dst_mem_start_addr += data_length * data_size;
+	}
 	p2p_sys_end_chain_config((uintptr_t)(general_desc_virtual_addr + GENERAL_CMD_SIZE));
 
 	p2p_enable_desc(csr_reg_base, NORMAL_GENERAL_DESC);
@@ -323,8 +342,8 @@ int main(int argc, char *argv[])
 	int src_format;
 	int ret;
 
-	if (argc > 6 || argc < 4 ) {
-        	printf("Usage: test_cdma_p2p src_addr dst_addr size pio/desc [desc_num] \n");
+	if (argc > 7 || argc < 4 ) {
+        	printf("Usage: test_cdma_p2p src_addr dst_addr size sec_len pio/desc [desc_num] \n");
         	return -1;
     	}
 
@@ -340,27 +359,32 @@ int main(int argc, char *argv[])
 	uintptr_t src_mem_start_addr = (uintptr_t)strtol(argv[1],&endptr,16);
 	u64 dst_mem_start_addr = (u64)strtol(argv[2],&endptr,16);
 	u32 data_length = (u32)atoi(argv[3]);
+	sec_length = (u8)atoi(argv[4]);
 	printf("src_mem_start_addr:0x%lx dst_mem_start_addr:0x%lx data_length %d \n",
 		src_mem_start_addr, dst_mem_start_addr, data_length);
 	
 	uintptr_t src_ddr_addr_virtual = (uintptr_t)(ddr_mapped_memory + src_mem_start_addr);
 	uintptr_t dst_ddr_value_virtual = (uintptr_t)(ddr_mapped_memory + dst_mem_start_addr);
-	write_data_32(src_ddr_addr_virtual, dst_ddr_value_virtual, data_length);
 	
 #ifdef USING_PMU
 
-	enable_cdma_perf_monitor((char*)dma_mapped_memory, CDMA_PMU_START_ADDR, CDMA_PMU_SIZE);
+	enable_cdma_perf_monitor((char*)dma_mapped_memory, 
+				 (char*)ddr_mapped_memory, 
+				 CDMA_PMU_START_ADDR, 
+				 CDMA_PMU_SIZE);
 
 #endif
-	if ((!strcmp(argv[4], "pio")) && (argc == 5)) {
+	if ((!strcmp(argv[5], "pio")) && (argc == 6)) {
 		printf("[testcase:P2P NORMAL PIO] PIO_num:%d\n", 1);
+		write_data_32(src_ddr_addr_virtual, dst_ddr_value_virtual, data_length);
 		ret = testcase_cdma_p2p_normal_pio((char*)dma_mapped_memory,
 						   (u64)src_mem_start_addr,
 						   (int)DATA_INT32,
 						   data_length,
 						   dst_mem_start_addr);
-	} else if ((!strcmp(argv[4], "desc")) && (argc == 6)) {
-		desc_num = (u8)atoi(argv[5]);
+	} else if ((!strcmp(argv[5], "desc")) && (argc == 7)) {
+		desc_num = (u8)atoi(argv[6]);
+		write_data_32(src_ddr_addr_virtual, dst_ddr_value_virtual, data_length * desc_num);
 		printf("[testcase:P2P NORMAL DESC] desc_num:%d\n", desc_num);
 		ret = testcase_cdma_p2p_normal_desc((char*)dma_mapped_memory,
 				 		    (char*)ddr_mapped_memory,
@@ -382,7 +406,7 @@ int main(int argc, char *argv[])
 #ifdef USING_PMU
 	usleep(10);
 	disable_cdma_perf_monitor((char*)dma_mapped_memory);
-	show_cdma_pmu_data(CDMA_PMU_START_ADDR, 0);
+	show_cdma_pmu_data( (char*)ddr_mapped_memory, CDMA_PMU_START_ADDR, 0);
 #endif
 
 #if 0

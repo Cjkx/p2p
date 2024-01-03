@@ -15,11 +15,11 @@
 #include "mmio.h"
 
 
-#define	CDMA_RX_CHANNEL		0x0
-#define	CDMA_TX_CHANNEL		0x0
+#define	CDMA_RX_CHANNEL		0x7
+#define	CDMA_TX_CHANNEL		0x7
 
 
-#define USING_PMU
+
 
 #define DEBUG
 
