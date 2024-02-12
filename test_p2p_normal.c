@@ -31,13 +31,13 @@ static void eth_header_construction(uintptr_t csr_reg_base) {
 		.source_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		.vlan_header = {
 			.ether_type = 0x8100, 
-			.priority = 1,
+			.priority = 7,
 			.cfi = 0,
-			.vlan_id = 608,	
+			.vlan_id = 4094,	
 		}
 	};
 
-	set_normal_eth_header(&eth_header, "36:de:bb:03:0b:c9", "6c:3c:8c:74:cc:c4") ;
+	set_normal_eth_header(&eth_header, "e2:e4:d7:5a:5e:84", "04:32:01:2c:ec:31") ;
 	val = (eth_header.dest_mac[3] << 24) | (eth_header.dest_mac[2] << 16) |
 	      (eth_header.dest_mac[1] << 8) | eth_header.dest_mac[0] ;
 	sg_write32(csr_reg_base, CDMA_CSR_148_Setting, val);
@@ -136,7 +136,11 @@ static void cdma_p2p_normal_csr_config(uintptr_t csr_reg_base){
 	reg_val &= ~(0xff << REG_INTRA_DIE_READ_ADDR_H8);
 	reg_val |= (0x80 << REG_INTRA_DIE_READ_ADDR_H8);
 	sg_write32(csr_reg_base, CDMA_CSR_141_OFFSET, reg_val);
-	printf("[CDMA_CSR_141_OFFSET]:0x%x\n", reg_val);	
+	printf("[CDMA_CSR_141_OFFSET]:0x%x\n", reg_val);
+
+	sg_write32(csr_reg_base, NORMAL_FRAME_LEN, 0x200000);
+	printf("[NORMAL_FRAME_LEN]:0x%x\n", sg_read32(csr_reg_base, NORMAL_FRAME_LEN));
+
 }
 
 
@@ -209,8 +213,10 @@ int testcase_cdma_p2p_normal_pio(char* dma_base_mmap,
 	printf("cdma transfer consumes %d us\n", 1500 - count);
 	// clear intr
 	val = sg_read32(csr_reg_base,CDMA_CSR_20_Setting);
+	printf("[INTR] val:0x%lx", val);
+	val = 0;
 	val |= (1 << INTR_CMD_DONE_STATUS);
-	sg_write32(csr_reg_base,CDMA_CSR_20_Setting,val);
+	sg_write32(csr_reg_base, CDMA_CSR_20_Setting, val);
 	printf("CDMA polling complete\n");
 
 	return 0;

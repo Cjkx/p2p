@@ -157,7 +157,7 @@ void write_frame(uintptr_t src_ddr_addr_virtual,
 	write_data_8(src_ddr_addr_virtual + 4 * width32_num,
 		     dst_ddr_value_virtual + 4 * width32_num, 
 		     byte_num);
-	dump((void*)src_ddr_addr_virtual, 128);
+	//dump((void*)src_ddr_addr_virtual, 64);
 }
 
 int compare_frame(uintptr_t src_ddr_addr_virtual, 

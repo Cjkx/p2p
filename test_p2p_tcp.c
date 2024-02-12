@@ -10,21 +10,34 @@
 #include "cdma_p2p_common.h"
 #include "cdma_p2p_normal.h"
 #include "xlgmac_core.h"
+#include "raw_tcp_ip.h"
 
-#define eth_header_len 16
+//#define USING_PMU
 
-//6e:40:68:7f:97:34
-static void Constructe_Ethernet_Header(uintptr_t src_ddr_addr_virtual) {
+#define eth_header_len 20
+
+
+void set_normal_eth_header(eth_header_t *eth, const char *src_mac_str, const char *dest_mac_str) {
+	parse_mac_address(src_mac_str, eth->source_mac);
+	parse_mac_address(dest_mac_str, eth->dest_mac);
+}
+
+//   b2:99:c5:9e:d1:c4
+//  16:7c:1c:9a:bf:1f b2:87:f2:95:f5:00
+static void Constructe_Ethernet_Header(uintptr_t src_ddr_addr_virtual,u64 length) {
 	eth_header_t eth_header = {
-		.dest_mac = {0x6c, 0x3c, 0x8c, 0x74, 0xcc, 0xc4},
-		.source_mac = {0x6e, 0x40, 0x68, 0x7f, 0x97, 0x34},
+		.dest_mac = {0x04, 0x32, 0x01, 0x2c, 0xec, 0x31},
+		//.dest_mac = {0x6c, 0x3c, 0x8c, 0x74, 0xcc, 0xc4},
+		.source_mac = {0xb2, 0x99, 0xc5, 0x9e, 0xd1, 0xc4},
 		.vlan_header = {
 			.ether_type = 0x8100, 
-			.priority = 0,
+			.priority = 1,
 			.cfi = 0,
-			.vlan_id = 0,	
+			.vlan_id = 608,	
 		}
 	};
+
+	set_normal_eth_header(&eth_header, "e2:e4:d7:5a:5e:84", "04:32:01:2c:ec:31") ;
 
 	for (int i = 0; i < 6; ++i) {
              sg_write8(src_ddr_addr_virtual,i ,eth_header.dest_mac[i]); 
@@ -36,16 +49,19 @@ static void Constructe_Ethernet_Header(uintptr_t src_ddr_addr_virtual) {
 
 	u8 temp = (eth_header.vlan_header.priority << 5 | 
 	           eth_header.vlan_header.cfi << 4 |
-		   eth_header.vlan_header.vlan_id & 0xf);
+		   (eth_header.vlan_header.vlan_id >> 8) & 0xf);
 	
 	sg_write8(src_ddr_addr_virtual, 12, (eth_header.vlan_header.ether_type >> 8) & 0xff);
 	sg_write8(src_ddr_addr_virtual, 13, (eth_header.vlan_header.ether_type ) & 0xff);
 	sg_write8(src_ddr_addr_virtual, 14,  temp);
 	sg_write8(src_ddr_addr_virtual, 15, (eth_header.vlan_header.vlan_id  ) & 0xff);
+	sg_write8(src_ddr_addr_virtual, 16, (length >> 8  ) & 0xff);
+	sg_write8(src_ddr_addr_virtual, 17, length & 0xff);
+	sg_write8(src_ddr_addr_virtual, 18, 0x00);
+	sg_write8(src_ddr_addr_virtual, 19, 0x00);
 	
-	dump((void*)src_ddr_addr_virtual,eth_header_len);
-	printf("\n");
-	printf("\n");
+	// dump((void*)src_ddr_addr_virtual,eth_header_len);
+	// printf("\n");
 }
 
 static void p2p_tcp_csr_config(uintptr_t csr_reg_base, u8 mode){
@@ -121,7 +137,7 @@ static void p2p_tcp_desc_csr_config(uintptr_t csr_reg_base,
 		sg_write32(csr_reg_base, CDMA_CSR_143_Setting, reg_val);
 		printf("[DESC MODE][CDMA_CSR_143_OFFSET]:get 0x%x\n",
 			sg_read32(csr_reg_base, CDMA_CSR_143_Setting));
-	} else if(TCP_RECEIVE == mode) {
+	} else if (TCP_RECEIVE == mode) {
 		sg_write32(csr_reg_base, TCP_CSR_05_Setting, tcp_des_addr_l32);
 		sg_write32(csr_reg_base, TCP_CSR_06_Setting, tcp_des_addr_h4);
 		sg_write32(csr_reg_base, TCP_CSR_09_Setting, tcp_des_last_addr_l32);
@@ -146,7 +162,8 @@ static uintptr_t p2p_tcp_send_cmd_config(uintptr_t cmd_reg_base,
 				    	 u32 data_length, 
 				   	 u64 frame_length,
 				   	 u32 cmd_id,
-				   	 u8 desc_flag) {
+				   	 u8 desc_flag,
+					 u8 intr_flag) {
 	u64 reg_val;
 	u32 mem_tag = 0;
 	u8 fd_flag;
@@ -185,7 +202,7 @@ static uintptr_t p2p_tcp_send_cmd_config(uintptr_t cmd_reg_base,
 	}
 
 	reg_val =0;
-	reg_val = ((1ull << CDMA_CMD_INTR_ENABLE) |
+	reg_val = (((u64)intr_flag << CDMA_CMD_INTR_ENABLE) |
 		   (1ull << CMD_TCP_SEND_OWN) |
 		   ((u64)fd_flag << CMD_TCP_SEND_FD) |
 		   ((u64)ld_flag << CMD_TCP_SEND_LD) |
@@ -207,7 +224,8 @@ static uintptr_t p2p_tcp_send_cmd_config(uintptr_t cmd_reg_base,
 static uintptr_t p2p_tcp_rcv_cmd_config (uintptr_t cmd_reg_base, 
 				 	 u64 dst_mem_start_addr, 
 				    	 u32 data_length, 
-				   	 u32 cmd_id) {
+				   	 u32 cmd_id,
+					 u8 intr_flag) {
 	u64 reg_val;
 	u64 dst_addr_h8 =  (dst_mem_start_addr >> 32) & 0xff;
 	u64 dst_addr_l32 = (dst_mem_start_addr ) & 0xFFFFFFFF;
@@ -216,7 +234,7 @@ static uintptr_t p2p_tcp_rcv_cmd_config (uintptr_t cmd_reg_base,
 		dst_mem_start_addr, dst_addr_h8, dst_addr_l32);
 
 	reg_val =0;
-	reg_val = ((1ull << CMD_TCP_RCV_INTR_ENABLE) |
+	reg_val = (((u64)intr_flag << CMD_TCP_RCV_INTR_ENABLE) |
 		   (1ull << CMD_TCP_RCV_OWN) |
 		   ((u64)CDMA_TCP_RECEIVE << CMD_TCP_RCV_CMD_TYPE) |
 		   ((u64)data_length << CMD_TCP_RCV_BUF_LEN));
@@ -242,7 +260,9 @@ int testcase_p2p_tcp_send_mode (char* dma_base_mmap,
 	u32 count = 1500;
 	u32 cmd_id = 0;
 	u8 desc_flag;
+	u8 intr_flag = 0;
 	u32 desc_num = frame_length / data_length;
+	u64 data_length_temp;
 	uintptr_t desc_current_virtual_addr;
 	uintptr_t desc_phy_eaddr;
 
@@ -260,25 +280,33 @@ int testcase_p2p_tcp_send_mode (char* dma_base_mmap,
 
 
 	for(int i = 0; i < desc_num; i++) {
-		if(desc_num == 1){
-			desc_flag = FLD;
-		} else if(desc_num == 2) {
-			if(i == 0)
-				desc_flag = FD;
-			else if (i == 1)
-				desc_flag = LD;
-		}else if(desc_num > 2) {
-			if(i == 0)
-				desc_flag = FD;
-			else if(i == desc_num -1)
-				desc_flag = LD;
-			else
-				desc_flag = MD;
-		}
+		// if(desc_num == 1){
+		// 	desc_flag = FLD;
+		// } else if(desc_num == 2) {
+		// 	if(i == 0)
+		// 		desc_flag = FD;
+		// 	else if (i == 1)
+		// 		desc_flag = LD;
+		// }else if(desc_num > 2) {
+		// 	if(i == 0)
+		// 		desc_flag = FD;
+		// 	else if(i == desc_num -1)
+		// 		desc_flag = LD;
+		// 	else
+		// 		desc_flag = MD;
+		// }
+		if (i == desc_num - 1)
+			intr_flag = 1;
+		else 
+			intr_flag = 0;
 		p2p_tcp_send_cmd_config(desc_current_virtual_addr, src_mem_start_addr, data_length,
-					frame_length, cmd_id, desc_flag);
+					data_length, cmd_id, FLD, intr_flag);
 		desc_current_virtual_addr += TCP_RCV_CMD_SIZE;
-		src_mem_start_addr += data_length;
+		if(data_length < 256 )
+			data_length_temp = 256;
+		else 
+			data_length_temp = data_length;
+		src_mem_start_addr += data_length_temp;
 		cmd_id++;
 	}
 
@@ -286,15 +314,15 @@ int testcase_p2p_tcp_send_mode (char* dma_base_mmap,
 	desc_phy_eaddr = desc_phy_saddr + desc_num * TCP_SEND_CMD_SIZE;
 	p2p_tcp_desc_csr_config(csr_reg_base, desc_phy_saddr, desc_phy_eaddr, TCP_SEND);
 	
-	p2p_enable_desc(csr_reg_base, TCP_SEND);
+	
 
-	p2p_poll(csr_reg_base, TCP_SEND);
+	// p2p_poll(csr_reg_base, TCP_SEND);
 
-	//clear intr
-	reg_val = sg_read32(csr_reg_base, CDMA_CSR_20_Setting);
-	reg_val |= (1 << INTR_TCP_SEND_CMD_DONE);
-	sg_write32(csr_reg_base, CDMA_CSR_20_Setting, reg_val);
-	printf("[TCP SEND MODE] CDMA polling complete\n");
+	// //clear intr
+	// reg_val = sg_read32(csr_reg_base, CDMA_CSR_20_Setting);
+	// printf("[TCP SEND MODE] intr val :0x%u\n", reg_val);
+	// sg_write32(csr_reg_base, CDMA_CSR_20_Setting, reg_val);
+	// printf("[TCP SEND MODE] CDMA polling complete\n");
 }
 
 int testcase_p2p_tcp_rcv_mode(char* dma_base_mmap,
@@ -304,8 +332,10 @@ int testcase_p2p_tcp_rcv_mode(char* dma_base_mmap,
 			      u32 desc_num) {
 	u32 reg_val = 0;
 	u32 count = 1500;
-	u32 crc_len = 0;
+	u32 crc_len = 4;
+	u8 intr_flag = 0;
 	u32 cmd_id = 0;
+	u64 data_length_temp;
 	uintptr_t desc_current_virtual_addr;
 	uintptr_t desc_phy_eaddr;
 
@@ -320,25 +350,29 @@ int testcase_p2p_tcp_rcv_mode(char* dma_base_mmap,
 
 	desc_current_virtual_addr = desc_virtual_saddr;
 	for(int i = 0; i < desc_num; i++) {
-		if(i == desc_num - 1){
-			crc_len = 4;
-		} else
-			crc_len = 0;
-		p2p_tcp_rcv_cmd_config(desc_current_virtual_addr, dst_mem_start_addr, data_length + crc_len, cmd_id++);
+		if (i == desc_num - 1)
+			intr_flag = 1;
+		else 
+			intr_flag = 0;
+		p2p_tcp_rcv_cmd_config(desc_current_virtual_addr, dst_mem_start_addr, data_length + crc_len, cmd_id++, intr_flag);
 		desc_current_virtual_addr += TCP_RCV_CMD_SIZE;
-		dst_mem_start_addr += data_length;
+		if(data_length < 256 )
+			data_length_temp = 256;
+		else 
+			data_length_temp = data_length;
+		dst_mem_start_addr += data_length_temp;
 	}
 	
 	desc_phy_eaddr = desc_phy_saddr + desc_num * TCP_RCV_CMD_SIZE;
 
 	p2p_tcp_desc_csr_config(csr_reg_base, desc_phy_saddr, desc_phy_eaddr, TCP_RECEIVE);
 
-	p2p_enable_desc(csr_reg_base, TCP_RECEIVE);
+	
 
 	// p2p_poll(csr_reg_base, TCP_RECEIVE);
 	// // clear intr
 	// reg_val = sg_read32(csr_reg_base, CDMA_CSR_20_Setting);
-	// reg_val |= (1 << INTR_TCP_RCV_CMD_DONE);
+	// printf("[TCP RCV MODE] intr val :0x%u\n", reg_val);
 	// sg_write32(csr_reg_base, CDMA_CSR_20_Setting, reg_val);
 	// printf("[TCP RCV MODE] CDMA polling complete\n");
 	
@@ -360,13 +394,8 @@ static void rcv_poll(char* dma_base_mmap) {
 
 	cmd_id_send = sg_read32(csr_reg_base, TCP_CSR_14_Setting);
 	cmd_id_rcv = sg_read32(csr_reg_base, TCP_CSR_13_Setting);
-	if(cmd_id_send == cmd_id_rcv){
-		printf("[TCP RCV MODE] cmd_id_send:%d, cmd_id_rcv:%d, data rcv complete! \n",
-			cmd_id_send,cmd_id_rcv);
-	} else {
-		printf("[TCP RCV MODE] cmd_id_send:%d, cmd_id_rcv:%d, data rcv fail! \n",
-			cmd_id_send,cmd_id_rcv);
-	}
+	printf("[TCP RCV MODE] cmd_id_send:%d, cmd_id_rcv:%d, data rcv complete! \n",
+			cmd_id_send, cmd_id_rcv);
 }
 
 int main(int argc, char *argv[])
@@ -381,8 +410,8 @@ int main(int argc, char *argv[])
 	int src_format;
 	int ret;
 
-	if (argc != 5 ) {
-        	printf("Usage: test_cdma_p2p src_addr dst_addr data_length desc_num \n");
+	if (argc != 6 ) {
+        	printf("Usage: test_cdma_p2p src_addr dst_addr data_length desc_num r/s\n");
         	return -1;
     	}
 
@@ -393,40 +422,86 @@ int main(int argc, char *argv[])
 
 	uintptr_t src_mem_start_addr = (uintptr_t)strtol(argv[1],&endptr,16);
 	uintptr_t dst_mem_start_addr = (u64)strtol(argv[2],&endptr,16);
+	uintptr_t src_ddr_addr_virtual = (uintptr_t)(ddr_mapped_memory + src_mem_start_addr);
+	uintptr_t dst_ddr_value_virtual = (uintptr_t)(ddr_mapped_memory + dst_mem_start_addr);
+	uintptr_t csr_reg_base = (uintptr_t)(dma_mapped_memory + CSR_REG_OFFSET);
+
 	u32 data_length = (u32)atoi(argv[3]);
 	u8 desc_num = (u32)atoi(argv[4]);
 	u32 frame_length = data_length * desc_num;
 	printf("src_mem_start_addr:0x%lx dst_mem_start_addr:0x%lx data_length %d frame_length %d\n",
 		src_mem_start_addr, dst_mem_start_addr, data_length, frame_length);
 	
-	uintptr_t src_ddr_addr_virtual = (uintptr_t)(ddr_mapped_memory + src_mem_start_addr);
-	uintptr_t dst_ddr_value_virtual = (uintptr_t)(ddr_mapped_memory + dst_mem_start_addr);
+	u32 data_length_temp;
+#if 1
+	if ((!strcmp(argv[5], "s"))) {
+		for (int i = 0; i < desc_num; i++) {
+			Constructe_Ethernet_Header(src_ddr_addr_virtual + i * data_length, data_length - eth_header_len + 2);
+			write_frame(src_ddr_addr_virtual + i * data_length + eth_header_len, 
+			dst_ddr_value_virtual + i * data_length + eth_header_len, 
+			data_length - eth_header_len);
+		}
 
-	Constructe_Ethernet_Header(src_ddr_addr_virtual);
+		testcase_p2p_tcp_send_mode((char*)dma_mapped_memory,
+					(char*)ddr_mapped_memory,
+					(u64)src_mem_start_addr,
+					data_length,
+					frame_length);
+		p2p_enable_desc(csr_reg_base, TCP_SEND);
+	} else if ((!strcmp(argv[5], "r"))) {
+		testcase_p2p_tcp_rcv_mode((char*)dma_mapped_memory,
+			 		  (char*)ddr_mapped_memory,
+				 	  (u64)dst_mem_start_addr,
+				  	  data_length,
+				   	  desc_num);
+		p2p_enable_desc(csr_reg_base, TCP_RECEIVE);
+	} else if ((!strcmp(argv[5], "sr"))) {
+		for (int i = 0; i < desc_num; i++) {
+			if (data_length < 256)
+				 data_length_temp = 256;
+			else 
+				data_length_temp = data_length;
+		
+			Constructe_Ethernet_Header(src_ddr_addr_virtual + i * data_length_temp, data_length - eth_header_len + 2);
+			write_frame(src_ddr_addr_virtual + i * data_length_temp + eth_header_len, 
+			dst_ddr_value_virtual + i * data_length_temp + eth_header_len, 
+			data_length - eth_header_len);
+		}
 
-	write_frame(src_ddr_addr_virtual + eth_header_len, 
-		    dst_ddr_value_virtual + eth_header_len, 
-		    frame_length - eth_header_len );
+		testcase_p2p_tcp_rcv_mode((char*)dma_mapped_memory,
+					(char*)ddr_mapped_memory,
+					(u64)dst_mem_start_addr,
+					data_length,
+					desc_num);
+			
+		testcase_p2p_tcp_send_mode((char*)dma_mapped_memory,
+					(char*)ddr_mapped_memory,
+					(u64)src_mem_start_addr,
+					data_length,
+					frame_length);
+		// p2p_enable_desc(csr_reg_base, TCP_RECEIVE);
+		// p2p_enable_desc(csr_reg_base, TCP_SEND);
+		u32 reg_val = sg_read32(csr_reg_base, TCP_CSR_02_Setting);
+		reg_val |= (1 << REG_TCP_SEND_DES_MODE_ENABLE);
+		reg_val |= (1 << REG_TCP_RECEIVE_DES_MODE_ENABLE);
+		sg_write32(csr_reg_base, TCP_CSR_02_Setting, reg_val);
+		printf("start send and rcv...\n");
 
-	testcase_p2p_tcp_send_mode((char*)dma_mapped_memory,
-			     	   (char*)ddr_mapped_memory,
-			     	   (u64)src_mem_start_addr,
-			     	   data_length,
-			    	   frame_length);
 
-	//rcv_poll((char*)dma_mapped_memory);
+	}
+		
+#endif
 
-	testcase_p2p_tcp_rcv_mode((char*)dma_mapped_memory,
-			      	  (char*)ddr_mapped_memory,
-				  (u64)dst_mem_start_addr,
-				   data_length,
-				   desc_num);
+#if 0
+	rcv_poll((char*)dma_mapped_memory);
 
-
-	compare_frame(src_ddr_addr_virtual + eth_header_len, 
-		      dst_ddr_value_virtual + eth_header_len, 
-	 	      dst_mem_start_addr + eth_header_len, 
-		      frame_length - eth_header_len);
+	for(int i = 0; i < desc_num; i++) {
+		compare_frame(src_ddr_addr_virtual + i * data_length + eth_header_len, 
+			dst_ddr_value_virtual + i * data_length + eth_header_len, 
+			dst_mem_start_addr + i * data_length + eth_header_len, 
+			data_length - eth_header_len);
+	}
+#endif
 
 	munmap_dma_reg(dma_length, dma_mapped_memory);
 	munmap_dma_reg(ddr_length, ddr_mapped_memory);

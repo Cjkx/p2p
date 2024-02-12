@@ -47,7 +47,7 @@ static int xlgmac_rx_queue_prio(char* xlgmac_mapped_memory, u8 queue, u8 prio){
 
 	printf("queue %d write val 0x%x to MTL_RXQ_DMA_MAP addr:0x%x \n", 
 		queue, val, RxQ_Priority_Mapping_Ctrl(reg_index));
-	printf("queue %d sets the priority to %d\n", queue, prio);
+	printf("queue %d sets the priority to %d\n", queue, prio - 1);
 
 	return ret;
 }
@@ -226,7 +226,6 @@ int main(int argc, char** argv){
 	size_t xlgmac_length = XLGMAC_MEMORY_RANGE;
 	off_t  xlgmac_offset = XLGMAC_ETH_BASE_START;
 	u8 channel = CDMA_RX_CHANNEL;
-	u8 prio = 1;
 	u8 filter_index = 0;
 	u32 option;
 	int ch;
@@ -234,26 +233,26 @@ int main(int argc, char** argv){
 	char* xlgmac_mapped_memory = (char*)mmap_phy_addr(xlgmac_length, xlgmac_offset);
 	printf("mmap successful\n");
 
-	if(argc < 2){
+	if(argc < 3){
 		printf("invalid argc! test_xlgmac_core a/d vid");
 		goto munmap;
 	}
 
 	u32 vid = (u32)atoi(argv[2]);
-
-	if(!strcmp(argv[1], "a") && argc == 3){
+	u32 prio = (u32)atoi(argv[3]);
+	if (!strcmp(argv[1], "a") && argc == 4) {
 		ret = xlgmac_add_vlan_filter(xlgmac_mapped_memory, filter_index, vid);
 		if(ret == 0){
 			printf("add vlan filter_%d vid:%u successful!\n",filter_index, vid);
 		} else {
 			printf("add vlan filter_%d vid:%u fail!,ret = %d\n",filter_index, vid, ret);
 		}
-		xlgmac_rx_queue_prio(xlgmac_mapped_memory, CDMA_RX_CHANNEL, 1);
+		xlgmac_rx_queue_prio(xlgmac_mapped_memory, CDMA_RX_CHANNEL, prio);
 		xlgmac_dmap_mtl_to_dma(xlgmac_mapped_memory, CDMA_RX_CHANNEL);
 		
-	} else if(!strcmp(argv[1], "d") && argc == 3) {
+	} else if (!strcmp(argv[1], "d") && argc == 4) {
 		ret = xlgmac_del_vlan_filter(xlgmac_mapped_memory, filter_index, vid);
-		if(ret == 0){
+		if (ret == 0) {
 			printf("del vlan filter_%d vid:%u successful!\n",filter_index, vid);
 		} else {
 			printf("del vlan filter_%d vid:%u fail!,ret = %d\n",filter_index, vid, ret);
