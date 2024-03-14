@@ -496,9 +496,9 @@ int main(int argc, char *argv[])
 	rcv_poll((char*)dma_mapped_memory);
 
 	for(int i = 0; i < desc_num; i++) {
-		compare_frame(src_ddr_addr_virtual + i * data_length + eth_header_len, 
-			dst_ddr_value_virtual + i * data_length + eth_header_len, 
-			dst_mem_start_addr + i * data_length + eth_header_len, 
+		compare_frame(src_ddr_addr_virtual + i * data_length_temp + eth_header_len, 
+			dst_ddr_value_virtual + i * data_length_temp + eth_header_len, 
+			dst_mem_start_addr + i * data_length_temp + eth_header_len, 
 			data_length - eth_header_len);
 	}
 #endif

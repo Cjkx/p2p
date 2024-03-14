@@ -51,6 +51,11 @@ typedef enum {
 	FLD = 4,
 } DESC_FLAG;
 
+typedef enum {
+	RN = 0x80,
+	RNI = 0x90
+} DATA_INTERFACE;
+
 typedef struct {
     u8 dest_mac[6];
     u8 source_mac[6];
@@ -73,8 +78,8 @@ typedef struct {
 
 
 
-#define DDR_PHY_ADDRESS_START 		0x0000000000ULL
-#define DDR_PHY_ADDRESS_END 		0x001FFFFFFFULL
+#define DDR_PHY_ADDRESS_START 		0x000000000ULL
+#define DDR_PHY_ADDRESS_END 		0x01FFFFFFFULL
 #define DDR_MEMORY_RANGE 		(DDR_PHY_ADDRESS_END -\
 					DDR_PHY_ADDRESS_START + 1)
 
@@ -169,6 +174,7 @@ typedef struct {
 #define TCP_CSR_14_Setting		0x338
 #define TCP_CSR_20_Setting		0x350
 #define MTL_FAB_CSR_00			0x3c0
+#define NORMAL_FRAME_LEN		0x420
 
 // CDMA_CSR_0
 #define	REG_DES_MODE_ENABLE 	0

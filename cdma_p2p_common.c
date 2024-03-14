@@ -88,7 +88,7 @@ int data_compare(uintptr_t src_ddr_addr_virtual,
 		src_val = sg_read32(src_ddr_addr_virtual, i * 4);
 		dst_val = sg_read32(dst_ddr_value_virtual, i * 4);
 		if (src_val != dst_val) {
-			printf("data_compare error at addr 0x%lx exp 0x%x got 0x%x\n",
+			printf("data_compare error at addr_offset 0x%lx exp 0x%x got 0x%x\n",
 				dst_mem_start_addr + 4 * i, src_val, dst_val);
 			return -1;
 		}
@@ -210,7 +210,7 @@ void p2p_enable_desc(uintptr_t csr_reg_base, u8 mode) {
 int p2p_poll(uintptr_t csr_reg_base, u8 mode) {
 	u32 reg_offset;
 	u32 bit_offset;
-	u32 count = 1500;
+	u32 count = 4500;
 	char* mode_name;
 	u8 poll_val;
 
@@ -252,7 +252,7 @@ int p2p_poll(uintptr_t csr_reg_base, u8 mode) {
 		}
 		if (count % 100 == 0){
 			printf("[%s]cdma transfer consumes %d us\n", 
-				mode_name, 1500 - count);
+				mode_name, 4500 - count);
 		}
 	}
 

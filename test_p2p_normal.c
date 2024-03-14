@@ -13,10 +13,9 @@
 #include "cdma_pmu.h"
 #include "raw_tcp_ip.h"
 
-#define USING_PMU
 
 static u8 sec_length;
-
+static u8 data_interface;
 void set_normal_eth_header(eth_header_t *eth, const char *src_mac_str, const char *dest_mac_str) {
 	parse_mac_address(src_mac_str, eth->source_mac);
 	parse_mac_address(dest_mac_str, eth->dest_mac);
@@ -31,13 +30,14 @@ static void eth_header_construction(uintptr_t csr_reg_base) {
 		.source_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		.vlan_header = {
 			.ether_type = 0x8100, 
-			.priority = 7,
+			.priority = 1,
 			.cfi = 0,
-			.vlan_id = 4094,	
+			.vlan_id = 608,	
 		}
 	};
 
 	set_normal_eth_header(&eth_header, "e2:e4:d7:5a:5e:84", "04:32:01:2c:ec:31") ;
+	//set_normal_eth_header(&eth_header, "e2:e4:d7:5a:5e:84", "e2:e4:d7:5a:5e:84") ;
 	val = (eth_header.dest_mac[3] << 24) | (eth_header.dest_mac[2] << 16) |
 	      (eth_header.dest_mac[1] << 8) | eth_header.dest_mac[0] ;
 	sg_write32(csr_reg_base, CDMA_CSR_148_Setting, val);
@@ -132,14 +132,14 @@ static void cdma_p2p_normal_csr_config(uintptr_t csr_reg_base){
 	/* WRITE c2c_rn  / READ c2c_rn*/
 	reg_val = sg_read32(csr_reg_base, CDMA_CSR_141_OFFSET);
 	reg_val &= ~(0xff << REG_INTRA_DIE_WRITE_ADDR_H8);
-	reg_val |= (0x80 << REG_INTRA_DIE_WRITE_ADDR_H8);
+	reg_val |= (data_interface << REG_INTRA_DIE_WRITE_ADDR_H8);
 	reg_val &= ~(0xff << REG_INTRA_DIE_READ_ADDR_H8);
-	reg_val |= (0x80 << REG_INTRA_DIE_READ_ADDR_H8);
+	reg_val |= (data_interface << REG_INTRA_DIE_READ_ADDR_H8);
 	sg_write32(csr_reg_base, CDMA_CSR_141_OFFSET, reg_val);
 	printf("[CDMA_CSR_141_OFFSET]:0x%x\n", reg_val);
 
-	sg_write32(csr_reg_base, NORMAL_FRAME_LEN, 0x200000);
-	printf("[NORMAL_FRAME_LEN]:0x%x\n", sg_read32(csr_reg_base, NORMAL_FRAME_LEN));
+	// sg_write32(csr_reg_base, NORMAL_FRAME_LEN, 0x200000);
+	// printf("[NORMAL_FRAME_LEN]:0x%x\n", sg_read32(csr_reg_base, NORMAL_FRAME_LEN));
 
 }
 
@@ -210,14 +210,12 @@ int testcase_cdma_p2p_normal_pio(char* dma_base_mmap,
 			printf("cdma transfer consumes %d us\n", 1500 - count);
 		}
 	}
-	printf("cdma transfer consumes %d us\n", 1500 - count);
+	debug_log("cdma transfer consumes %d us\n", 1500 - count);
 	// clear intr
 	val = sg_read32(csr_reg_base,CDMA_CSR_20_Setting);
-	printf("[INTR] val:0x%lx", val);
-	val = 0;
-	val |= (1 << INTR_CMD_DONE_STATUS);
+	debug_log("[INTR] val:0x%lx\n", val);
 	sg_write32(csr_reg_base, CDMA_CSR_20_Setting, val);
-	printf("CDMA polling complete\n");
+	debug_log("CDMA polling complete\n");
 
 	return 0;
 }
@@ -226,12 +224,12 @@ int testcase_cdma_p2p_normal_pio(char* dma_base_mmap,
 
 #if defined(DESC_MODE)
 
-static void cdma_p2p_desc_csr_config(uintptr_t csr_reg_base) {
+static void cdma_p2p_desc_csr_config(uintptr_t csr_reg_base, u64 ddr_offset) {
 	u32 reg_val = 0;
 	u32 general_desc_phy_addr_l32;
 	u32 general_desc_phy_addr_h1;
 
-	uintptr_t general_desc_phy_addr = (uintptr_t)(DDR_PHY_ADDRESS_START + GENERAL_DESC_PHY_OFFSET);
+	uintptr_t general_desc_phy_addr = (uintptr_t)(ddr_offset + GENERAL_DESC_PHY_OFFSET);
 	general_desc_phy_addr_l32 = ((general_desc_phy_addr)>> 7) & 0xFFFFFFFF;
 	general_desc_phy_addr_h1 = ((general_desc_phy_addr)>> 39) & 0x1;
 	printf("[DESC MODE] general_desc_phy_addr:0x%lx general_desc_phy_addr_l32:0x%x\
@@ -249,7 +247,7 @@ static void cdma_p2p_desc_csr_config(uintptr_t csr_reg_base) {
 	/* desc net config*/
 	reg_val = sg_read32(csr_reg_base, CDMA_CSR_142_OFFSET);
 	reg_val &= ~(0xff << REG_DES_READ_ADDR_H8);
-	reg_val |= (0x80 << REG_DES_READ_ADDR_H8);
+	reg_val |= (data_interface << REG_DES_READ_ADDR_H8);
 	sg_write32(csr_reg_base, CDMA_CSR_142_OFFSET, reg_val);
 	printf("[DESC MODE][CDMA_CSR_142_OFFSET]:get 0x%x\n",sg_read32(csr_reg_base,CDMA_CSR_142_OFFSET));
 }
@@ -297,6 +295,7 @@ static void cdma_p2p_general_cmd_config(uintptr_t cmd_reg_base,
 
 int testcase_cdma_p2p_normal_desc(char* dma_base_mmap,
 				  char* ddr_mapped_memory,
+				  u64 ddr_offset,
 				  u8 desc_num,
 				  u64 src_mem_start_addr,
 				  u64 dst_mem_start_addr,
@@ -314,7 +313,7 @@ int testcase_cdma_p2p_normal_desc(char* dma_base_mmap,
 		 csr_reg_base, general_desc_virtual_addr);
 	data_size = 4;
 	cdma_p2p_normal_csr_config(csr_reg_base);
-	cdma_p2p_desc_csr_config(csr_reg_base);
+	cdma_p2p_desc_csr_config(csr_reg_base, ddr_offset);
 	for(int i = 0; i < desc_num; i++) {
 		cdma_p2p_general_cmd_config(general_desc_virtual_addr, src_mem_start_addr, dst_mem_start_addr,
 				    src_format, data_length);
@@ -329,6 +328,10 @@ int testcase_cdma_p2p_normal_desc(char* dma_base_mmap,
 	p2p_enable_desc(csr_reg_base, NORMAL_GENERAL_DESC);
 
 	ret = p2p_poll(csr_reg_base, NORMAL_GENERAL_DESC);
+	// clear intr
+	reg_val = sg_read32(csr_reg_base,CDMA_CSR_20_Setting);
+	debug_log("[INTR] val:0x%lx\n", reg_val);
+	sg_write32(csr_reg_base, CDMA_CSR_20_Setting, reg_val);
 
 	return ret;
 }
@@ -339,36 +342,43 @@ int main(int argc, char *argv[])
 	size_t dma_length = CDMA_MEMORY_RANGE;
 	off_t  dma_offset = CDMA_PHY_ADDRESS_START;
 	size_t ddr_length = DDR_MEMORY_RANGE;
-	off_t  ddr_offset = DDR_PHY_ADDRESS_START;
 	size_t xlgmac_length = XLGMAC_MEMORY_RANGE;
 	off_t  xlgmac_offset = XLGMAC_ETH_BASE_START;
 	char* endptr;
-	u8 desc_num;
+	u32 desc_num;
 	u8 filter_index = 0;
 	int src_format;
 	int ret;
 
-	if (argc > 7 || argc < 4 ) {
-        	printf("Usage: test_cdma_p2p src_addr dst_addr size sec_len pio/desc [desc_num] \n");
+	if (argc > 9 || argc < 8 ) {
+        	printf("Usage: test_cdma_p2p ddr_offset src_addr dst_addr size sec_len interface_type pio/desc [desc_num] \n");
         	return -1;
     	}
+	u64  ddr_offset = (uintptr_t)strtol(argv[1],&endptr,16);
 
 	char* dma_mapped_memory = (char*)mmap_phy_addr(dma_length, dma_offset);
 	char* ddr_mapped_memory = (char*)mmap_phy_addr(ddr_length, ddr_offset);
 	char* xlgmac_mapped_memory = (char*)mmap_phy_addr(xlgmac_length, xlgmac_offset);
-	
+	printf("mmap start_addr:0x%llx, mmap length:%lluM!\n", (unsigned long long)ddr_offset, ddr_length / (1024ULL * 1024)); 
 	printf("mmap success!\n");
 
 	xlgmac_set_rx_crc_strip(xlgmac_mapped_memory);
 	// xlgmac_set_loopback_mode(xlgmac_mapped_memory, 1);
 
-	uintptr_t src_mem_start_addr = (uintptr_t)strtol(argv[1],&endptr,16);
-	u64 dst_mem_start_addr = (u64)strtol(argv[2],&endptr,16);
-	u32 data_length = (u32)atoi(argv[3]);
-	sec_length = (u8)atoi(argv[4]);
+	uintptr_t src_mem_start_addr = (uintptr_t)strtol(argv[2],&endptr,16);
+	u64 dst_mem_start_addr = (u64)strtol(argv[3],&endptr,16);
+	u32 data_length = (u32)atoi(argv[4]);
+	sec_length = (u8)atoi(argv[5]);
+	if (!strcmp(argv[6], "rn")){
+		data_interface = RN;
+	} else if (!strcmp(argv[6], "rni")){
+		data_interface = RNI;
+	}
+	
 	printf("src_mem_start_addr:0x%lx dst_mem_start_addr:0x%lx data_length %d \n",
 		src_mem_start_addr, dst_mem_start_addr, data_length);
-	
+	printf("src_mem_start_addr_end:0x%lx dst_mem_start_addr_end:0x%lx \n",
+		src_mem_start_addr + data_length * 4, dst_mem_start_addr + data_length * 4);
 	uintptr_t src_ddr_addr_virtual = (uintptr_t)(ddr_mapped_memory + src_mem_start_addr);
 	uintptr_t dst_ddr_value_virtual = (uintptr_t)(ddr_mapped_memory + dst_mem_start_addr);
 	
@@ -376,29 +386,34 @@ int main(int argc, char *argv[])
 
 	enable_cdma_perf_monitor((char*)dma_mapped_memory, 
 				 (char*)ddr_mapped_memory, 
-				 CDMA_PMU_START_ADDR, 
+				 (CDMA_PMU_START_ADDR + ddr_offset), 
 				 CDMA_PMU_SIZE);
 
 #endif
-	if ((!strcmp(argv[5], "pio")) && (argc == 6)) {
+	if ((!strcmp(argv[7], "pio")) && (argc == 8)) {
 		printf("[testcase:P2P NORMAL PIO] PIO_num:%d\n", 1);
-		write_data_32(src_ddr_addr_virtual, dst_ddr_value_virtual, data_length);
+		//write_data_32(src_ddr_addr_virtual, dst_ddr_value_virtual, data_length);
 		ret = testcase_cdma_p2p_normal_pio((char*)dma_mapped_memory,
-						   (u64)src_mem_start_addr,
-						   (int)DATA_INT32,
+						   (u64)(src_mem_start_addr + ddr_offset),
+						   (int)DATA_FP32,
 						   data_length,
-						   dst_mem_start_addr);
-	} else if ((!strcmp(argv[5], "desc")) && (argc == 7)) {
-		desc_num = (u8)atoi(argv[6]);
-		write_data_32(src_ddr_addr_virtual, dst_ddr_value_virtual, data_length * desc_num);
+						   (u64)(dst_mem_start_addr + ddr_offset));
+		ret = data_compare(src_ddr_addr_virtual, dst_ddr_value_virtual, 
+			  (uintptr_t)(dst_mem_start_addr + ddr_offset), data_length);
+	} else if ((!strcmp(argv[7], "desc")) && (argc == 9)) {
+		desc_num = (u8)atoi(argv[8]);
+		write_data_32(src_ddr_addr_virtual, dst_ddr_value_virtual, (data_length * desc_num));
 		printf("[testcase:P2P NORMAL DESC] desc_num:%d\n", desc_num);
 		ret = testcase_cdma_p2p_normal_desc((char*)dma_mapped_memory,
 				 		    (char*)ddr_mapped_memory,
+						    ddr_offset,
 				 		    desc_num,
-				                    (u64)src_mem_start_addr,
-				                    (u64)dst_mem_start_addr,
-				                    (int)DATA_INT32,
+				                    (u64)(src_mem_start_addr + ddr_offset),
+				                    (u64)(dst_mem_start_addr + ddr_offset),
+				                    (int)DATA_FP32,
 				                     data_length);
+		ret = data_compare(src_ddr_addr_virtual, dst_ddr_value_virtual, 
+			  (uintptr_t)(dst_mem_start_addr + ddr_offset), (data_length * desc_num));
 	} else {
 		printf("Usage: test_cdma_p2p src_addr dst_addr size pio/desc [desc_num] \n");
 		goto munmap;
@@ -406,8 +421,7 @@ int main(int argc, char *argv[])
 
 	
   	
-	ret = data_compare(src_ddr_addr_virtual, dst_ddr_value_virtual, 
-			  dst_mem_start_addr, data_length);
+	
 
 #ifdef USING_PMU
 	usleep(10);
