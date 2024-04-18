@@ -9,15 +9,15 @@ project (test_cdma_p2p)
 
 include_directories(include)
 
-set(SOURCES  cdma_p2p_common.c cdma_pmu.c )
+set(SOURCES  src/cdma_p2p_common.c src/cdma_pmu.c )
 
-add_library(libp2p STATIC  raw_tcp_ip.c)
+add_library(libp2p STATIC  src/raw_tcp_ip.c)
 
 
 
-add_executable(test_xlgmac_core ${SOURCES} xlgmac_core.c)
-add_executable(test_p2p_normal ${SOURCES} test_p2p_normal.c)
-add_executable(test_p2p_tcp   ${SOURCES} test_p2p_tcp.c)
+add_executable(test_xlgmac_core ${SOURCES} src/xlgmac_core.c)
+add_executable(test_p2p_normal ${SOURCES} src/test_p2p_normal.c)
+add_executable(test_p2p_tcp   ${SOURCES} src/test_p2p_tcp.c)
 
 target_link_libraries(test_p2p_normal libp2p)
 target_link_libraries(test_p2p_tcp libp2p)

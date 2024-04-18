@@ -130,6 +130,9 @@ void write_data_32(uintptr_t src_ddr_addr_virtual,
 
 	for(int i = 0; i < data_length ; i++) {
 		sg_write32(src_ddr_addr_virtual, i * 4, i);
+	}
+	
+	for(int i = 0; i < data_length ; i++) {
 		sg_write32(dst_ddr_value_virtual, i * 4 ,0);
 	}
 }

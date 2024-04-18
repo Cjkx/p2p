@@ -138,8 +138,8 @@ static void cdma_p2p_normal_csr_config(uintptr_t csr_reg_base){
 	sg_write32(csr_reg_base, CDMA_CSR_141_OFFSET, reg_val);
 	printf("[CDMA_CSR_141_OFFSET]:0x%x\n", reg_val);
 
-	// sg_write32(csr_reg_base, NORMAL_FRAME_LEN, 0x200000);
-	// printf("[NORMAL_FRAME_LEN]:0x%x\n", sg_read32(csr_reg_base, NORMAL_FRAME_LEN));
+	sg_write32(csr_reg_base, NORMAL_FRAME_LEN, 0x200000);
+	printf("[NORMAL_FRAME_LEN]:0x%x\n", sg_read32(csr_reg_base, NORMAL_FRAME_LEN));
 
 }
 
@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
 #endif
 	if ((!strcmp(argv[7], "pio")) && (argc == 8)) {
 		printf("[testcase:P2P NORMAL PIO] PIO_num:%d\n", 1);
-		//write_data_32(src_ddr_addr_virtual, dst_ddr_value_virtual, data_length);
+		 write_data_32(src_ddr_addr_virtual, dst_ddr_value_virtual, data_length);
 		ret = testcase_cdma_p2p_normal_pio((char*)dma_mapped_memory,
 						   (u64)(src_mem_start_addr + ddr_offset),
 						   (int)DATA_FP32,
